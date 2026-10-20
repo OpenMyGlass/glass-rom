@@ -7,7 +7,7 @@ com.android.certinstaller	keep	AOSP: Wi-Fi/VPN certificates
 com.android.defcontainer	keep	AOSP: needed to install APKs
 com.android.inputdevices	keep	AOSP: keyboard layouts
 com.android.keychain	keep	AOSP: credential storage
-com.android.keyguard	keep	AOSP lock screen, used by Glass head-wake/lock
+com.android.keyguard	keep	AOSP lock screen (keyguard); likely used by the Glass screen lock
 com.android.location.fused	keep	AOSP location provider
 com.android.packageinstaller	keep	AOSP: needed to sideload the OpenMyGlass Glass app
 com.android.providers.calendar	unknown	content provider other apps may query; nothing syncs into it after XE24
@@ -26,23 +26,23 @@ com.google.android.backuptransport	remove	Google cloud backup; backend shut down
 com.google.android.glass.systemui	keep	Glass system UI
 com.google.android.gms	unknown	Google Play services 6.1, backend gone; check that Glass Home, Voice and Camera still start without it
 com.google.android.gsf	unknown	Google Services Framework, backend gone; same check as gms
-com.google.android.gsf.login	remove	Google account sign-in, removed by XE24
-com.google.android.tts	keep	offline text-to-speech, used for spoken navigation and readouts
+com.google.android.gsf.login	unknown	Google account sign-in; XE24 no longer needs an account, but GSF and Play services authenticate through it: decide together with gsf and gms
+com.google.android.tts	keep	offline text-to-speech engine, available to apps that read text aloud
 com.google.glass.bluetooth	keep	Glass Bluetooth pairing UI
 com.google.glass.camera	keep	camera: photos and videos for media sync
 com.google.glass.companion	unknown	'Glass Wear': the Glass side of the MyGlass companion link (time zone, Wi-Fi setup) that OpenMyGlass talks to; probably keep
-com.google.glass.frameworkstubs	keep	Glass framework stubs, needed by the GDK runtime
+com.google.glass.frameworkstubs	keep	Glass framework stubs; likely part of the GDK runtime
 com.google.glass.gesture	keep	touchpad and head gestures
 com.google.glass.home	keep	launcher and timeline; hosts the GDK LiveCards the OpenMyGlass app uses
 com.google.glass.litesetup	unknown	first-run setup; check whether pairing or Wi-Fi setup depends on it
-com.google.glass.lockrecovery	keep	recovery when the screen lock pattern is forgotten
-com.google.glass.logging	remove	usage logging and crash upload to Google; backend gone
+com.google.glass.lockrecovery	unknown	screen-lock recovery; uses the network and probably needs a dead Google backend
+com.google.glass.logging	unknown	usage logging and crash upload to Google (backend gone); other Glass apps may write to its provider and crash without it: check its manifest and disable first
 com.google.glass.phone	keep	calls through the paired phone (Bluetooth HFP)
 com.google.glass.remoteime	unknown	remote keyboard input from the companion app; check whether anything still uses it
 com.google.glass.settings	keep	Glass settings storage
 com.google.glass.settings.ui	keep	Glass settings screens
 com.google.glass.sound	keep	system sounds
-com.google.glass.sync	remove	timeline/cloud sync with Google servers; backend gone
-com.google.glass.update	remove	OTA updater; no updates exist after XE24, and an update would undo the debloat
+com.google.glass.sync	unknown	timeline/cloud sync with Google (backend gone); it may own the account, sync adapter or provider Glass Home uses: check before removing
+com.google.glass.update	remove	OTA updater; no updates exist after XE24 (check that first-run setup does not wait on it)
 com.google.glass.videoplayer	keep	plays recorded videos
 com.google.glass.voice	keep	'ok glass' hotword and voice menus

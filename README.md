@@ -9,7 +9,7 @@ Tools to build a cloud-free, debloated system for Google Glass Explorer Edition 
 
 ## Status
 
-Phase 2: an offline inventory of the system apps plus a draft debloat list. See [`docs/xe24-packages.md`](docs/xe24-packages.md) and [`debloat/xe24-packages.tsv`](debloat/xe24-packages.tsv): 34 keep, 5 remove, 6 to check on a device.
+Phase 2: an offline inventory of the system apps plus a draft debloat list. See [`docs/xe24-packages.md`](docs/xe24-packages.md) and [`debloat/xe24-packages.tsv`](debloat/xe24-packages.tsv): 33 keep, 2 remove, 10 to check on a device.
 
 Phase 1: fetching and verifying the factory image, plus boot image tools. These cover unpacking and repacking an Android boot image and making an "insecure" boot image (root adb) from the stock one. Google's rooted XE24 `boot.img` is no longer downloadable. Nothing here has been run on hardware yet.
 
@@ -27,6 +27,7 @@ Inventory (needs `debugfs` from e2fsprogs and `aapt2` from the Android SDK build
 tools/sparse.py factory/system.img factory/system.raw
 tools/inventory.py factory/system.raw factory/inventory.json
 tools/check_debloat.py factory/inventory.json debloat/xe24-packages.tsv
+tools/render_packages.py factory/inventory.json debloat/xe24-packages.tsv docs/xe24-packages.md
 ```
 
 `tools/bootimg.py info|unpack|pack` handles any Android v0 boot image. The stock XE24 `boot.img`, unpacked and repacked, comes out byte-identical.

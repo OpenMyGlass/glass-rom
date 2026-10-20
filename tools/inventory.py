@@ -24,13 +24,30 @@ class InventoryError(Exception):
 
 
 def parse_ls(text: str) -> list:
-    """Regular *.apk files from `debugfs -R "ls -l DIR"`, as (name, size)."""
+    """Regular files from `debugfs -R "ls -l DIR"`, as (name, size).
+
+    KitKat keeps apps flat in /system/app and /system/priv-app (no per-app dirs).
+    """
     out = []
     for line in text.splitlines():
         m = LS_LINE.match(line)
-        if m and m.group(1).startswith("100") and m.group(3).endswith(".apk"):
+        if m and m.group(1).startswith("100"):
             out.append((m.group(3), int(m.group(2))))
     return out
+
+
+def apps_in(files: list) -> list:
+    """(apk name, apk size, size of its .odex or 0) for each APK; odexed images ship both."""
+    sizes = dict(files)
+    return [(name, size, sizes.get(name[:-4] + ".odex", 0))
+            for name, size in files if name.endswith(".apk")]
+
+
+def check_debugfs_stderr(text: str) -> None:
+    """debugfs exits 0 on errors; anything besides its version banner is one."""
+    errors = [l for l in text.splitlines() if l.strip() and not l.startswith("debugfs ")]
+    if errors:
+        raise InventoryError("debugfs: " + "; ".join(errors))
 
 
 def _attr(line: str, key: str) -> str:
@@ -68,8 +85,42 @@ def find_tool(name: str, extra_globs: list) -> str:
 
 
 def debugfs(tool: str, image: str, command: str) -> str:
-    return subprocess.run([tool, "-R", command, image], capture_output=True, text=True,
-                          check=True).stdout
+    result = subprocess.run([tool, "-R", command, image], capture_output=True, text=True)
+    check_debugfs_stderr(result.stderr)
+    if result.returncode:
+        raise InventoryError(f"debugfs exited with {result.returncode}")
+    return result.stdout
+
+
+def badging(tool: str, apk: str, name: str) -> dict:
+    result = subprocess.run([tool, "dump", "badging", apk], capture_output=True, text=True)
+    try:
+        return parse_badging(result.stdout)
+    except InventoryError:
+        raise InventoryError(f"aapt2 could not read {name}: {result.stderr.strip()}") from None
+
+
+def inventory(image: str, dfs: str, aapt2: str) -> list:
+    if not os.path.isfile(image):
+        raise InventoryError(f"{image}: no such file")
+    apps = []
+    with tempfile.TemporaryDirectory() as tmp:
+        local = os.path.join(tmp, "app.apk")
+        for d in APP_DIRS:
+            found = apps_in(parse_ls(debugfs(dfs, image, f"ls -l {d}")))
+            if not found:
+                raise InventoryError(f"no APKs found in {d}")
+            for name, size, odex_size in found:
+                if '"' in name:
+                    raise InventoryError(f"unsupported file name {name!r}")
+                debugfs(dfs, image, f'dump "{d}/{name}" "{local}"')
+                if not os.path.isfile(local):
+                    raise InventoryError(f"debugfs did not extract {d}/{name}")
+                info = badging(aapt2, local, name)
+                info.update(path=f"/system{d}/{name}", size=size, odex_size=odex_size)
+                apps.append(info)
+                os.remove(local)
+    return sorted(apps, key=lambda a: a["path"])
 
 
 def main(argv):
@@ -77,23 +128,15 @@ def main(argv):
         print(__doc__, file=sys.stderr)
         return 2
     image, out_path = argv
-    dfs = find_tool("debugfs", ["/opt/homebrew/opt/e2fsprogs/sbin/debugfs",
-                                "/usr/local/opt/e2fsprogs/sbin/debugfs", "/sbin/debugfs"])
-    aapt2 = find_tool("aapt2", ["~/Library/Android/sdk/build-tools/*/aapt2",
-                                "~/Android/Sdk/build-tools/*/aapt2"])
-    apps = []
-    with tempfile.TemporaryDirectory() as tmp:
-        for d in APP_DIRS:
-            for name, size in parse_ls(debugfs(dfs, image, f"ls -l {d}")):
-                local = os.path.join(tmp, "app.apk")
-                debugfs(dfs, image, f'dump "{d}/{name}" {local}')
-                badging = subprocess.run([aapt2, "dump", "badging", local], capture_output=True,
-                                         text=True).stdout
-                info = parse_badging(badging)
-                info.update(path=f"/system{d}/{name}", size=size)
-                apps.append(info)
-                os.remove(local)
-    apps.sort(key=lambda a: a["path"])
+    try:
+        dfs = find_tool("debugfs", ["/opt/homebrew/opt/e2fsprogs/sbin/debugfs",
+                                    "/usr/local/opt/e2fsprogs/sbin/debugfs", "/sbin/debugfs"])
+        aapt2 = find_tool("aapt2", ["~/Library/Android/sdk/build-tools/*/aapt2",
+                                    "~/Android/Sdk/build-tools/*/aapt2"])
+        apps = inventory(image, dfs, aapt2)
+    except InventoryError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
     with open(out_path, "w") as f:
         json.dump(apps, f, indent=2)
         f.write("\n")
