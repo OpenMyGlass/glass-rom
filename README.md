@@ -9,13 +9,25 @@ Tools to build a cloud-free, debloated system for Google Glass Explorer Edition 
 
 ## Status
 
-Phase 1 (in progress): fetching and verifying the factory image, plus boot image tools. These cover unpacking and repacking an Android boot image and making an "insecure" boot image (root adb) from the stock one. Google's rooted XE24 `boot.img` is no longer downloadable. Nothing here has been run on hardware yet.
+Phase 1: fetching and verifying the factory image, plus boot image tools. These cover unpacking and repacking an Android boot image and making an "insecure" boot image (root adb) from the stock one. Google's rooted XE24 `boot.img` is no longer downloadable. Nothing here has been run on hardware yet.
+
+## Usage
+
+```sh
+tools/fetch-factory.sh factory/                       # download and verify (442 MB)
+tools/make_insecure_boot.py factory/boot.img out/boot-insecure.img [--kernel zImage]
+tools/fastboot-guard.sh boot out/boot-insecure.img    # RAM only: nothing is written
+```
+
+`tools/bootimg.py info|unpack|pack` handles any Android v0 boot image. The stock XE24 `boot.img`, unpacked and repacked, comes out byte-identical.
+
+**Untested on hardware:** this boot image only changes `default.prop` (`ro.secure=0`, `ro.adb.secure=0`, `ro.debuggable=1`). If the stock XE24 `adbd` was built to always drop root, as KitKat `user` builds usually are, `adb root` will still be refused. A patched `adbd` is then needed, which is a later step.
 
 ## Safety
 
 - Every device step is opt-in, run by the owner, and printed before it runs.
 - Boot tests use `fastboot boot` (RAM only, nothing written) before any `fastboot flash`.
-- The scripts refuse to write the `bootloader`, `xloader` and `fpga` partitions. No public way to recover a Glass with those damaged is known.
+- `tools/fastboot-guard.sh` lets through only RAM-only and read-only commands. Writes need `--i-understand` and are limited to `boot`, `recovery`, `system`, `cache` and `userdata`. It always refuses `bootloader`, `xloader`, `fpga`, `update`, `flashall` and options such as `-w`. Use it instead of calling `fastboot` directly. No public way to recover a Glass with those damaged is known.
 - `fastboot oem unlock` wipes user data.
 
 ## Factory image

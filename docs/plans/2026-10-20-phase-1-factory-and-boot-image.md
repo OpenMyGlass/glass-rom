@@ -12,7 +12,7 @@
 2. `tools/bootimg.py` (`unpack`, `pack`, `info`): Android boot image header v0. Fields: magic, kernel/ramdisk/second size and addr, tags addr, page size, name, cmdline, id. Page-aligned sections; `id` = SHA-1 over the sections and their sizes, as mkbootimg computes it. Tests: the pack → unpack round trip is byte-identical; unpack → pack of a synthetic image reproduces it exactly; a bad magic or truncated file is rejected.
 3. `tools/ramdisk.py`: read and write gzip-compressed cpio `newc`, preserving entry order, modes and the trailer; edit `default.prop` key=value lines. Tests on a synthetic ramdisk: an unchanged round trip is identical; edits replace existing keys and append missing ones; no other entry changes.
 4. `tools/make-insecure-boot.sh FACTORY_DIR OUT [--kernel zImage]`: combines tasks 2 and 3. Local acceptance against the real image (not in CI): unpacking and repacking the stock `boot.img` without edits must reproduce it byte for byte, which proves the tool understands the format.
-5. `tools/fastboot-guard.sh`: a wrapper that only allows `boot`, `getvar`, `devices` and `reboot`, and refuses `flash`, `erase`, `oem` and `format` unless `--i-understand` is given. It always refuses bootloader/xloader/fpga.
+5. `tools/fastboot-guard.sh`: a wrapper that only allows `boot`, `getvar`, `devices`, `reboot` and `continue` (with an optional `-s SERIAL`). `flash`, `erase`, `format` and `oem` need `--i-understand`, and writes are limited to boot/recovery/system/cache/userdata. It always refuses bootloader/xloader/fpga, `update`, `flashall` and any other option (`-w` wipes after any command).
 6. CI: GitHub Actions runs the unit tests and `shellcheck`.
 
 ## Done when
