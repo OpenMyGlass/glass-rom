@@ -27,7 +27,7 @@ tools/fastboot-guard.sh boot out/boot-insecure.img    # RAM only: nothing is wri
 
 - Every device step is opt-in, run by the owner, and printed before it runs.
 - Boot tests use `fastboot boot` (RAM only, nothing written) before any `fastboot flash`.
-- The scripts refuse to write the `bootloader`, `xloader` and `fpga` partitions. No public way to recover a Glass with those damaged is known.
+- `tools/fastboot-guard.sh` lets through only RAM-only and read-only commands. Writes need `--i-understand` and are limited to `boot`, `recovery`, `system`, `cache` and `userdata`. It always refuses `bootloader`, `xloader`, `fpga`, `update`, `flashall` and options such as `-w`. Use it instead of calling `fastboot` directly. No public way to recover a Glass with those damaged is known.
 - `fastboot oem unlock` wipes user data.
 
 ## Factory image

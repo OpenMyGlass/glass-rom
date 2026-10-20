@@ -37,6 +37,15 @@ class MakeInsecureBootTest(unittest.TestCase):
         after = bootimg.parse(make_insecure_boot.make(stock(), kernel=b"NEWKERNEL"))
         self.assertEqual(after.kernel, b"NEWKERNEL")
 
+    def test_main_creates_the_output_directory(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            stock_path = Path(d) / "boot.img"
+            stock_path.write_bytes(stock())
+            out = Path(d) / "out" / "nested" / "boot-insecure.img"
+            make_insecure_boot.main([str(stock_path), str(out)])
+            self.assertTrue(out.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

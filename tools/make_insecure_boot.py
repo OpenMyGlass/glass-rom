@@ -24,13 +24,14 @@ def make(stock: bytes, kernel: bytes = None) -> bytes:
     return bootimg.pack(img)
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("stock")
     ap.add_argument("out")
     ap.add_argument("--kernel", help="zImage to use instead of the stock kernel")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     kernel = Path(args.kernel).read_bytes() if args.kernel else None
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_bytes(make(Path(args.stock).read_bytes(), kernel))
     print(f"wrote {args.out}; test it with: fastboot boot {args.out}")
 

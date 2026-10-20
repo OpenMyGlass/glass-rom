@@ -67,6 +67,29 @@ class BootImageTest(unittest.TestCase):
         with self.assertRaises(bootimg.BootImageError):
             bootimg.parse(data[:-2048])
 
+    def test_too_long_cmdline_is_rejected(self):
+        img = synthetic()
+        img.cmdline = b"x" * 512
+        with self.assertRaises(bootimg.BootImageError):
+            bootimg.pack(img)
+
+    def test_too_long_name_is_rejected(self):
+        img = synthetic()
+        img.name = b"n" * 16
+        with self.assertRaises(bootimg.BootImageError):
+            bootimg.pack(img)
+
+    def test_bad_page_size_is_rejected_on_pack(self):
+        for page in (0, 3000):
+            with self.assertRaises(bootimg.BootImageError):
+                bootimg.pack(synthetic(page=page))
+
+    def test_header_version_other_than_0_is_rejected(self):
+        data = bytearray(bootimg.pack(synthetic()))
+        data[40:44] = (1).to_bytes(4, "little")
+        with self.assertRaises(bootimg.BootImageError):
+            bootimg.parse(bytes(data))
+
     def test_trailing_data_is_preserved(self):
         data = bootimg.pack(synthetic()) + b"\x00SIGNATURE"
         self.assertEqual(bootimg.pack(bootimg.parse(data)), data)

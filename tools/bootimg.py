@@ -52,13 +52,19 @@ def compute_id(kernel: bytes, ramdisk: bytes, second: bytes) -> bytes:
     return h.digest()
 
 
+def _check_page(page: int) -> None:
+    if page < HEADER.size or page & (page - 1):
+        raise BootImageError(f"bad page size {page}")
+
+
 def parse(data: bytes) -> BootImage:
     if len(data) < HEADER.size or data[:8] != MAGIC:
         raise BootImageError("not an Android boot image")
     (_, ksize, kaddr, rsize, raddr, ssize, saddr, tags, page,
      u0, u1, name, cmdline, _id, extra) = HEADER.unpack_from(data)
-    if page == 0 or page & (page - 1):
-        raise BootImageError(f"bad page size {page}")
+    _check_page(page)
+    if u0 != 0:
+        raise BootImageError(f"boot image header version {u0} is not supported (only v0)")
     offset = page
     sections = []
     for size in (ksize, rsize, ssize):
@@ -78,6 +84,10 @@ def parse(data: bytes) -> BootImage:
 
 def pack(img: BootImage) -> bytes:
     page = img.page_size
+    _check_page(page)
+    for field, limit in (("name", 16), ("cmdline", 512), ("extra_cmdline", 1024)):
+        if len(getattr(img, field)) >= limit:
+            raise BootImageError(f"{field} is longer than {limit - 1} bytes")
     header = HEADER.pack(
         MAGIC, len(img.kernel), img.kernel_addr, len(img.ramdisk), img.ramdisk_addr,
         len(img.second), img.second_addr, img.tags_addr, page, *img.unused,

@@ -35,5 +35,17 @@ refused --i-understand flash xloader xloader.img
 refused --i-understand erase fpga
 refused boot bootloader
 
+refused getvar all -w
+refused boot img --set-active=a
+allowed -s SERIAL123 getvar version
+refused -s SERIAL123 flash boot boot.img
+refused --i-understand update image.zip
+refused --i-understand flashall
+refused --i-understand flash Bootloader b.img
+refused --i-understand flash x-loader x.img
+refused --i-understand flash radio r.img
+allowed --i-understand flash recovery recovery.img
+allowed --i-understand -s SERIAL123 flash system system.img
+
 [ "$fail" -eq 0 ] && echo "fastboot-guard: all tests passed"
 exit "$fail"
