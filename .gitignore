@@ -1,0 +1,5 @@
+factory/
+out/
+__pycache__/
+*.img
+*.zip
