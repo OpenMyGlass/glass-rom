@@ -9,7 +9,19 @@ Tools to build a cloud-free, debloated system for Google Glass Explorer Edition 
 
 ## Status
 
-Phase 1 (in progress): fetching and verifying the factory image, plus boot image tools. These cover unpacking and repacking an Android boot image and making an "insecure" boot image (root adb) from the stock one. Google's rooted XE24 `boot.img` is no longer downloadable. Nothing here has been run on hardware yet.
+Phase 1: fetching and verifying the factory image, plus boot image tools. These cover unpacking and repacking an Android boot image and making an "insecure" boot image (root adb) from the stock one. Google's rooted XE24 `boot.img` is no longer downloadable. Nothing here has been run on hardware yet.
+
+## Usage
+
+```sh
+tools/fetch-factory.sh factory/                       # download and verify (442 MB)
+tools/make_insecure_boot.py factory/boot.img out/boot-insecure.img [--kernel zImage]
+tools/fastboot-guard.sh boot out/boot-insecure.img    # RAM only: nothing is written
+```
+
+`tools/bootimg.py info|unpack|pack` handles any Android v0 boot image. The stock XE24 `boot.img`, unpacked and repacked, comes out byte-identical.
+
+**Untested on hardware:** this boot image only changes `default.prop` (`ro.secure=0`, `ro.adb.secure=0`, `ro.debuggable=1`). If the stock XE24 `adbd` was built to always drop root, as KitKat `user` builds usually are, `adb root` will still be refused. A patched `adbd` is then needed, which is a later step.
 
 ## Safety
 
