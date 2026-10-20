@@ -4,8 +4,8 @@
 Usage: manifest_deps.py MANIFEST_DIR PACKAGE...
 
 MANIFEST_DIR holds one `aapt2 dump xmltree --file AndroidManifest.xml APK` output per app
-(*.txt). For each PACKAGE it prints its shared user, permissions, providers, services and
-the apps that request its permissions. Only manifests are read; no code is decompiled.
+(*.txt). For each PACKAGE it prints its shared user and same-user peers, providers, services, the
+permissions guarding its components, the apps it depends on and the apps that depend on it. Only manifests are read; no code is decompiled.
 """
 import glob
 import os
@@ -16,9 +16,18 @@ ELEMENT = re.compile(r"^(\s*)E: (\S+)")
 ATTR = re.compile(r'^\s*A: (?:http://schemas\.android\.com/apk/res/android:)?(\w+)(?:\([^)]*\))?=(?:"([^"]*)"|(\S+))')
 
 
+# element tag -> field collecting its android:name
+NAMED = {"permission": "permissions", "permission-tree": "permission_trees",
+         "uses-permission": "uses_permissions", "uses-permission-sdk-23": "uses_permissions",
+         "uses-permission-sdk-m": "uses_permissions", "service": "services", "action": "actions",
+         "uses-library": "libraries"}
+
+
 def parse(text: str) -> dict:
-    m = {"package": None, "shared_user": None, "permissions": [], "uses_permissions": [],
-         "providers": [], "services": [], "libraries": [], "actions": []}
+    """Declarations of one manifest. `guards` are the permissions its components require."""
+    m = {"package": None, "shared_user": None, "permissions": [], "permission_trees": [],
+         "uses_permissions": [], "guards": [], "providers": [], "services": [], "libraries": [],
+         "actions": []}
     stack = []  # (indent, tag)
     for line in text.splitlines():
         e = ELEMENT.match(line)
@@ -37,10 +46,10 @@ def parse(text: str) -> dict:
             m["package"] = value
         elif tag == "manifest" and key == "sharedUserId":
             m["shared_user"] = value
-        elif key == "name" and tag in ("permission", "uses-permission", "service", "action", "uses-library"):
-            field = {"permission": "permissions", "uses-permission": "uses_permissions",
-                     "service": "services", "action": "actions", "uses-library": "libraries"}[tag]
-            m[field].append(value)
+        elif key == "name" and tag in NAMED:
+            m[NAMED[tag]].append(value)
+        elif key in ("permission", "readPermission", "writePermission") and value not in m["guards"]:
+            m["guards"].append(value)
         elif tag == "provider" and key == "authorities":
             m["providers"].extend(value.split(";"))
     if not m["package"]:
@@ -48,12 +57,37 @@ def parse(text: str) -> dict:
     return m
 
 
+def _app(apps: list, package: str) -> dict:
+    return next(a for a in apps if a["package"] == package)
+
+
+def _covers(app: dict, permission: str) -> bool:
+    """The app declares the permission, directly or through a permission tree."""
+    return permission in app["permissions"] or any(
+        permission.startswith(tree + ".") for tree in app["permission_trees"])
+
+
 def dependents(apps: list, package: str) -> list:
-    """Other apps that request a permission the package declares."""
-    target = next(a for a in apps if a["package"] == package)
-    declared = set(target["permissions"])
+    """Other apps that request a permission the package declares (or its tree covers), or one
+    that guards the package's components (including framework permissions)."""
+    target = _app(apps, package)
+    guards = set(target["guards"])
+    return sorted(a["package"] for a in apps if a["package"] != package and any(
+        _covers(target, p) or p in guards for p in a["uses_permissions"]))
+
+
+def depends_on(apps: list, package: str) -> list:
+    """Other apps that declare a permission the package requests."""
+    requested = _app(apps, package)["uses_permissions"]
+    return sorted(a["package"] for a in apps if a["package"] != package and any(
+        _covers(a, p) for p in requested))
+
+
+def shared_user_peers(apps: list, package: str) -> list:
+    """Other apps running under the same sharedUserId (one process identity)."""
+    shared = _app(apps, package)["shared_user"]
     return sorted(a["package"] for a in apps
-                  if a["package"] != package and declared & set(a["uses_permissions"]))
+                  if shared and a["package"] != package and a["shared_user"] == shared)
 
 
 def main(argv):
@@ -75,7 +109,10 @@ def main(argv):
         print(f"providers: {', '.join(a['providers']) or '-'}")
         print(f"services: {', '.join(s.split('.')[-1] for s in a['services']) or '-'}")
         print(f"libraries: {', '.join(a['libraries']) or '-'}")
-        print(f"apps requesting its permissions: {', '.join(dependents(apps, package)) or '-'}\n")
+        print(f"guarded by: {', '.join(a['guards']) or '-'}")
+        print(f"same shared user: {', '.join(shared_user_peers(apps, package)) or '-'}")
+        print(f"depends on: {', '.join(depends_on(apps, package)) or '-'}")
+        print(f"dependents: {', '.join(dependents(apps, package)) or '-'}\n")
     return 0
 
 

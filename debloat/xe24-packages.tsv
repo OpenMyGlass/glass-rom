@@ -22,27 +22,27 @@ com.android.shell	keep	AOSP: adb shell and bugreports
 com.android.systemui	keep	AOSP system UI: removing it breaks boot
 com.android.vpndialogs	keep	AOSP: VPN confirmation dialogs, tiny
 board_id.com.ti	keep	TI board identification (hardware support)
-com.google.android.backuptransport	remove	Google cloud backup; backend shut down
+com.google.android.backuptransport	remove	Google cloud backup; backend shut down. Shares com.google.uid.shared with GSF/Play services; nothing else references it. Check the backup_transport setting in phase 3
 com.google.android.glass.systemui	keep	Glass system UI
-com.google.android.gms	keep	hosts the Wearable data layer (WearableService, BluetoothServerService) that Glass Wear binds to (gms.wearable.BIND_LISTENER) for the companion link; also network location and geocoding
-com.google.android.gsf	keep	Gservices settings provider read by Glass Home, Voice, Settings, Video player, Glass Wear and TTS (READ_GSERVICES)
+com.google.android.gms	keep	hosts the Wearable data layer (WearableService, BluetoothServerService), which binds Glass Wear's listener service (gms.wearable.BIND_LISTENER) for the companion link; also network location and geocoding
+com.google.android.gsf	keep	Gservices settings provider; READ_GSERVICES is held by Glass Home, Voice, Settings, Video player, Glass Wear, Glass Sync and TTS, among others
 com.google.android.gsf.login	unknown	Google account authenticator; only GSF uses its permissions, and GSF is kept: check that GSF and Glass Wear start without it
 com.google.android.tts	keep	offline text-to-speech engine, available to apps that read text aloud
 com.google.glass.bluetooth	keep	Glass Bluetooth pairing UI
 com.google.glass.camera	keep	camera: photos and videos for media sync
-com.google.glass.companion	keep	'Glass Wear': the Glass side of the companion link (wearable listener, notification bridge, connection setup)
+com.google.glass.companion	keep	'Glass Wear': the Glass side of the companion link (wearable listener bound by Play services, notification bridge, connection setup)
 com.google.glass.frameworkstubs	keep	Glass framework stubs; likely part of the GDK runtime
 com.google.glass.gesture	keep	touchpad and head gestures
 com.google.glass.home	keep	launcher and timeline; hosts the GDK LiveCards the OpenMyGlass app uses
 com.google.glass.litesetup	unknown	first-run setup wizard (DEVICE_INITIALIZATION_WIZARD); needed again after a factory reset
 com.google.glass.lockrecovery	unknown	GDK app (uses-library com.google.android.glass); no app depends on it; probably needs a dead Google backend
-com.google.glass.logging	unknown	14 Glass apps hold its signature permission USER_EVENT_SERVICE and bind its service; no provider. Disable first and watch for crashes
+com.google.glass.logging	unknown	14 Glass apps hold its signature permission USER_EVENT_SERVICE (its service is guarded by it); no provider. Disable first and watch for crashes
 com.google.glass.phone	keep	calls through the paired phone (Bluetooth HFP)
 com.google.glass.remoteime	unknown	input method fed by the companion app (reacts to COMPANION_APP_CONNECTIVITY_CHANGE); check whether dictation or text entry from the phone needs it
 com.google.glass.settings	keep	Glass settings storage
 com.google.glass.settings.ui	keep	Glass settings screens
 com.google.glass.sound	keep	system sounds
 com.google.glass.sync	keep	owns the timeline provider (com.google.glass.sync.timeline) that Glass Home and 12 other Glass apps hold TIMELINE_PROVIDER for; removing it breaks the timeline
-com.google.glass.update	remove	OTA updater; no updates exist after XE24. Glass Home and GSF can only trigger it (TRIGGER_OTA). Check that first-run setup does not wait on it
+com.google.glass.update	remove	OTA updater; no updates exist after XE24. GSF declares TRIGGER_OTA and hosts the installer receiver; Glass Update and Glass Home only send INSTALL_UPDATE to it. Check that first-run setup does not wait on it
 com.google.glass.videoplayer	keep	plays recorded videos
 com.google.glass.voice	keep	'ok glass' hotword and voice menus
