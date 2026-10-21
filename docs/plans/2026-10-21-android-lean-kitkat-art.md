@@ -146,14 +146,14 @@ Each fact names where it was read. AOSP paths are at tag `android-4.4.4_r2` on a
 ### Task 3: Compile cost: first boot, install, storage
 
 **Files:**
-- Modify (fork): `frameworks/native/cmds/installd/commands.c`. `run_dex2oat` passes `--runtime-arg -compiler-filter:<filter>`, which 4.4's dex2oat accepts. The filter comes from `persist.glass.dex2oat-filter.system` for packages under `/system`, `persist.glass.dex2oat-filter.user` for the others, and `persist.glass.dex2oat-filter.<package>` as a per-package override. These are our own properties, since 4.4 has no `dalvik.vm.dex2oat-filter`, and they are `persist.` so they change without a rebuild.
+- Modify (fork): `frameworks/native/cmds/installd/commands.c`. `run_dex2oat` passes `--runtime-arg -compiler-filter:<filter>`, which 4.4's dex2oat accepts. The filter comes from `persist.glass.d2o.sys` for packages under `/system` and `persist.glass.d2o.usr` for the others. These are our own properties, since 4.4 has no `dalvik.vm.dex2oat-filter`. They are `persist.`, so they change without a rebuild, and short, since 4.4 limits property names to 31 characters (`PROP_NAME_MAX` 32). Per-package overrides cannot fit in a property name, so installd reads them from `/data/system/glass-dex2oat-filters`, one `package filter` line each.
 - Modify (device tree): `system.prop` (the defaults of those properties).
 
 - [ ] **Step 1: Filter policy.**
   - Boot image: keep `speed`, or `everything` as now. It is compiled once, and every process maps it.
   - System apps: `speed`.
-  - User apps: `space` by default; `setprop persist.glass.dex2oat-filter.user speed` switches back.
-  - `interpret-only`, through the per-package property, is the fallback for an app that dex2oat fails on or that takes too long. Size it against `/data`: Glass has a 16 GB eMMC (`BOARD_USERDATAIMAGE_PARTITION_SIZE` is about 13 GiB), so storage is not tight, but compile time on the device is.
+  - User apps: `space` by default; `setprop persist.glass.d2o.usr speed` switches back.
+  - `interpret-only`, through a line in the override file, is the fallback for an app that dex2oat fails on or that takes too long. Size it against `/data`: Glass has a 16 GB eMMC (`BOARD_USERDATAIMAGE_PARTITION_SIZE` is about 13 GiB), so storage is not tight, but compile time on the device is.
   - Do not build ART in small mode globally: it would make everything interpreted, which costs CPU at run time.
 - [ ] **Step 2: Bound the first boot.** Show "optimising apps" progress (4.4 already does, through `PackageManagerService` `performBootDexOpt`). Keep the system image small (Task 4) so there is less to compile.
   - Target: first boot under 10 minutes on the device. This is unverified: nothing was measured on an A9 at 1 GHz.
@@ -225,7 +225,7 @@ Ranked by gain for Glass against cost. Only the first group is planned.
 
 - [ ] **Step 1: App test list.** Pick about 20 apps a Glass user plausibly installs: a few GDK samples (open-source), a music player, a podcast app, a navigation app, a notes app, a camera app, a terminal and so on, in versions that support API 19.
   - The GDK's `com.google.android.glass` library is Google's and is not shipped. GDK apps need a clean-room stub library. That belongs to R5 and is out of scope here.
-- [ ] **Step 2: CheckJNI.** Turn it on for the test pass only with `setprop dalvik.vm.checkjni true` (not `ro.`, so it can be turned off again; `ro.kernel.android.checkjni` is only the fallback when it is unset).
+- [ ] **Step 2: CheckJNI.** Turn it on for the test pass only with `setprop dalvik.vm.checkjni true` then `adb shell stop; adb shell start` so zygote reads it (not `ro.`, so it can be turned off again; `ro.kernel.android.checkjni` is only the fallback when it is unset).
 - [ ] **Step 3: Fallbacks per failure:**
   - (a) the `interpret-only` filter for that app;
   - (b) a cherry-picked ART fix (Task 5, rank 5);
