@@ -88,6 +88,8 @@ def main(argv=None):
     if args.kernel and not args.pvr_module and not args.keep_stock_pvr:
         ap.error("--kernel needs --pvr-module: the stock GPU module does not load into a "
                  "tuned kernel (pass --keep-stock-pvr to keep it anyway)")
+    if Path(args.out).resolve() == Path(args.stock).resolve():
+        ap.error("OUT_IMG must not be the stock boot image")
     if args.pvr_module and args.keep_stock_pvr:
         ap.error("--pvr-module and --keep-stock-pvr exclude each other")
     kernel = Path(args.kernel).read_bytes() if args.kernel else None

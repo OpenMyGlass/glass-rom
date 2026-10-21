@@ -153,6 +153,16 @@ class MainPvrTest(unittest.TestCase):
             self.run_main("--pvr-module", "@m.ko", "--keep-stock-pvr")
         self.assertEqual(cm.exception.code, 2)
 
+    def test_output_over_the_stock_image_is_refused(self):
+        import tempfile
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, d)
+        (d / "boot.img").write_bytes(stock())
+        with self.assertRaises(SystemExit) as cm:
+            make_insecure_boot.main([str(d / "boot.img"), str(d / "boot.img")])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual((d / "boot.img").read_bytes(), stock())
+
     def test_module_without_kernel_keeps_the_stock_kernel(self):
         out = self.run_main("--pvr-module", "@m.ko")
         img = bootimg.parse(out.read_bytes())
