@@ -30,6 +30,14 @@ tools/check_debloat.py factory/inventory.json debloat/xe24-packages.tsv
 tools/render_packages.py factory/inventory.json debloat/xe24-packages.tsv docs/xe24-packages.md
 ```
 
+Vendor extraction (needs `debugfs`; takes the raw system image from above):
+
+```sh
+tools/extract_vendor.py factory/system.raw $AOSP/device/glass/glass-1/proprietary-files.txt $AOSP/vendor/glass/glass-1
+```
+
+The output contains Google binaries and stays on the owner's machine.
+
 `tools/bootimg.py info|unpack|pack` handles any Android v0 boot image. The stock XE24 `boot.img`, unpacked and repacked, comes out byte-identical.
 
 **Untested on hardware:** this boot image only changes `default.prop` (`ro.secure=0`, `ro.adb.secure=0`, `ro.debuggable=1`). If the stock XE24 `adbd` was built to always drop root, as KitKat `user` builds usually are, `adb root` will still be refused. A patched `adbd` is then needed, which is a later step.
