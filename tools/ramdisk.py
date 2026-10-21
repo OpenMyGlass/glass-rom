@@ -95,3 +95,47 @@ def set_props(entries: list, props: dict) -> list:
     if not found:
         raise RamdiskError("ramdisk has no default.prop")
     return out
+
+
+def add_file(entries: list, name: str, data: bytes, mode: int = 0o100644) -> list:
+    """Return entries with the regular file `name` added (or replaced), plus missing parent dirs.
+
+    New entries go just before the trailer, parent directories first, so a cpio
+    extractor creates each directory before the files in it.
+    """
+    if name.startswith("/") or not name or ".." in name.split("/"):
+        raise RamdiskError(f"bad ramdisk path {name!r}")
+    names = {e.name for e in entries}
+    out = [e for e in entries if e.name not in (name, TRAILER)]
+    trailer = [e for e in entries if e.name == TRAILER]
+    parts = name.split("/")
+    for i in range(1, len(parts)):
+        d = "/".join(parts[:i])
+        if d not in names:
+            out.append(Entry(name=d, mode=0o040755, data=b"", nlink=2))
+    out.append(Entry(name=name, mode=mode, data=data))
+    return out + trailer
+
+
+def replace_line(entries: list, name: str, old: str, new: str) -> list:
+    """Return entries with the one line of file `name` whose text is `old` replaced by `new`.
+
+    Leading whitespace is ignored when matching and kept in the result. Exactly one
+    line must match, so a changed stock file fails loudly instead of being half-edited.
+    """
+    out, found = [], False
+    for e in entries:
+        if e.name == name:
+            found = True
+            lines = e.data.decode("utf-8").split("\n")
+            hits = [i for i, line in enumerate(lines) if line.strip() == old]
+            if len(hits) != 1:
+                raise RamdiskError(f"{name}: expected one line {old!r}, found {len(hits)}")
+            i = hits[0]
+            indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
+            lines[i] = indent + new
+            e = replace(e, data="\n".join(lines).encode("utf-8"))
+        out.append(e)
+    if not found:
+        raise RamdiskError(f"ramdisk has no {name}")
+    return out

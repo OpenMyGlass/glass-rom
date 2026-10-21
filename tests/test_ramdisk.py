@@ -64,5 +64,56 @@ class RamdiskTest(unittest.TestCase):
             ramdisk.read(gzip.compress(b"not a cpio archive"))
 
 
+class AddFileTest(unittest.TestCase):
+    def test_adds_parents_then_file_before_trailer(self):
+        entries = ramdisk.read(ramdisk.write(sample()))
+        out = ramdisk.add_file(entries, "lib/modules/m.ko", b"KO")
+        names = [e.name for e in out]
+        self.assertEqual(names[-4:], ["lib", "lib/modules", "lib/modules/m.ko", "TRAILER!!!"])
+        self.assertEqual(out[-3].mode, 0o040755)
+        self.assertEqual(out[-2].mode, 0o100644)
+        self.assertEqual(out[-2].data, b"KO")
+
+    def test_reuses_existing_dirs_and_replaces_existing_file(self):
+        entries = sample() + [ramdisk.Entry(name="sbin", mode=0o040750, data=b""),
+                              ramdisk.Entry(name="sbin/x", mode=0o100755, data=b"old")]
+        out = ramdisk.add_file(entries, "sbin/x", b"new")
+        names = [e.name for e in out]
+        self.assertEqual(names.count("sbin/x"), 1)
+        self.assertEqual(names.count("sbin"), 1)
+        self.assertEqual(out[-1].data, b"new")
+
+    def test_round_trips_through_cpio(self):
+        out = ramdisk.read(ramdisk.write(ramdisk.add_file(sample(), "lib/modules/m.ko", b"KO")))
+        self.assertIn(("lib/modules/m.ko", b"KO"), [(e.name, e.data) for e in out])
+
+    def test_rejects_bad_paths(self):
+        for bad in ("/abs", "", "a/../b"):
+            with self.assertRaises(ramdisk.RamdiskError):
+                ramdisk.add_file(sample(), bad, b"")
+
+
+class ReplaceLineTest(unittest.TestCase):
+    RC = b"on fs\n    mount_all /fstab\n    insmod /a.ko\n\non boot\n"
+
+    def entries(self, data=RC):
+        return sample() + [ramdisk.Entry(name="init.x.rc", mode=0o100750, data=data)]
+
+    def test_replaces_the_line_and_keeps_indent_and_the_rest(self):
+        out = ramdisk.replace_line(self.entries(), "init.x.rc", "insmod /a.ko", "insmod /b.ko")
+        rc = next(e for e in out if e.name == "init.x.rc")
+        self.assertEqual(rc.data, self.RC.replace(b"/a.ko", b"/b.ko"))
+        self.assertEqual(rc.mode, 0o100750)
+
+    def test_fails_when_the_line_is_missing_or_repeated(self):
+        for data in (b"on fs\n", self.RC + b"  insmod /a.ko\n"):
+            with self.assertRaises(ramdisk.RamdiskError):
+                ramdisk.replace_line(self.entries(data), "init.x.rc", "insmod /a.ko", "x")
+
+    def test_fails_when_the_file_is_missing(self):
+        with self.assertRaises(ramdisk.RamdiskError):
+            ramdisk.replace_line(sample(), "init.x.rc", "a", "b")
+
+
 if __name__ == "__main__":
     unittest.main()
