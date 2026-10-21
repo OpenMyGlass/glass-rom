@@ -35,6 +35,22 @@ Any binary on the "stays binary" list, and any HAL, daemon or library that a pha
 
   PowerVR user space and chip firmware (Ducati, Tesla, BCM4330, glasshub) come last. Reversing them documents the interfaces, but they stay binary unless a replacement turns out to be realistic.
 
+## Which operating system
+
+Decided with the owner on 2026-10-21: start from an open Android base, and keep a plain-Linux system possible.
+
+| Route | What it is | For | Against |
+|---|---|---|---|
+| 1. Open Android (current) | AOSP built from source, with our device tree, init files, HALs and services, and only the binaries above | GPU acceleration, camera, Bluetooth and Wi-Fi stacks already exist; OpenMyGlass works on it | The system underneath is Android; ours is the UI and services |
+| 2. Plain Linux on the stock kernel | The route of [glass-xec-mainline](https://github.com/Lasimeri/glass-xec-mainline): Alpine on XE24's 3.4.94 kernel, with our own minimal UI | Fully our own system, lighter, probably less battery use. Wi-Fi, display, audio, camera (through Ducati), touchpad and battery gauge are reported working on an XE-C | No GPU acceleration: the PowerVR user-space libraries are built for Android (bionic), so rendering is software. Bluetooth, GPS and sensors are untested there |
+| 3. Mainline kernel | A current Linux kernel | The cleanest long-term base | Does not boot yet (resets after about a minute); no driver for the panel (iCE40 FPGA) or glasshub; months of work, each step on hardware |
+
+How R4 and R5 are written so that route 2 stays open:
+- The Glass system services and the UI are components that do not depend on Android: daemons and libraries in C or Rust, and a UI that talks to a thin graphics layer.
+- This covers the glasshub protocol (wink, on-head), touchpad and head gestures, the card timeline, and voice through the phone.
+- Android-specific glue (system services, intents, the launcher wrapper) stays in a separate layer.
+- Once a Glass is available, battery drain, temperature and smoothness are measured on routes 1 and 2 with the same components, and the main route is picked from the measurements.
+
 ## Open decision
 
 The device tree's default branch targets Android 6.0.1 with blobs built for KitKat; the 5.1.1 branch is the only one reported to have booted (2016, XE22 blobs). Which Android version to build is decided before R3, when the first HAL needs a target API.
