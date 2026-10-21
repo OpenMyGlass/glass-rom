@@ -1,9 +1,24 @@
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
-from extract_vendor import ExtractError, parse_list, vendor_makefile  # noqa: E402
+import inventory  # noqa: E402
+from extract_vendor import ExtractError, extract, parse_list, vendor_makefile  # noqa: E402
+
+
+def _tool(name):
+    try:
+        return inventory.find_tool(name, [f"/opt/homebrew/opt/e2fsprogs/sbin/{name}",
+                                          f"/usr/local/opt/e2fsprogs/sbin/{name}"])
+    except inventory.InventoryError:
+        return None
+
+
+MKE2FS, DEBUGFS = _tool("mke2fs"), _tool("debugfs")
 
 
 class ParseListTest(unittest.TestCase):
@@ -31,6 +46,53 @@ class MakefileTest(unittest.TestCase):
             "PRODUCT_COPY_FILES += \\\n"
             "    vendor/glass/glass-1/proprietary/etc/a.conf:system/etc/a.conf \\\n"
             "    vendor/glass/glass-1/proprietary/lib/b.so:system/lib/b.so\n")
+
+
+@unittest.skipUnless(MKE2FS and DEBUGFS, "mke2fs and debugfs (e2fsprogs) are required")
+class ExtractImageTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+        src = self.tmp / "src"
+        (src / "lib").mkdir(parents=True)
+        (src / "vendor/firmware").mkdir(parents=True)
+        (src / "lib/a.so").write_bytes(b"A" * 10)
+        (src / "lib/a.so").chmod(0o644)
+        (src / "vendor/firmware/x.bin").write_bytes(b"\x00\x01")
+        (src / "vendor/firmware/x.bin").chmod(0o600)
+        self.image = str(self.tmp / "system.raw")
+        subprocess.run([MKE2FS, "-q", "-t", "ext4", "-d", str(src), self.image, "4M"], check=True)
+        self.out = self.tmp / "out" / "vendor"
+
+    def files(self):
+        return sorted((p.relative_to(self.out).as_posix(), p.read_bytes())
+                      for p in self.out.rglob("*") if p.is_file())
+
+    def test_extracts_files(self):
+        entries = [("lib/a.so", "lib/a.so"), ("vendor/firmware/x.bin", "fw/x.bin")]
+        extract(self.image, DEBUGFS, entries, self.out)
+        self.assertEqual((self.out / "proprietary/lib/a.so").read_bytes(), b"A" * 10)
+        self.assertEqual((self.out / "proprietary/fw/x.bin").read_bytes(), b"\x00\x01")
+        self.assertEqual((self.out / "device-vendor.mk").read_text(), vendor_makefile(entries))
+
+    def test_missing_files_are_all_reported(self):
+        entries = [("lib/a.so", "lib/a.so"), ("lib/no1.so", "lib/no1.so"), ("lib/no2.so", "lib/no2.so")]
+        with self.assertRaises(ExtractError) as cm:
+            extract(self.image, DEBUGFS, entries, self.out)
+        self.assertIn("lib/no1.so", str(cm.exception))
+        self.assertIn("lib/no2.so", str(cm.exception))
+        self.assertFalse(self.out.exists())
+        self.assertEqual(os.listdir(self.out.parent) if self.out.parent.exists() else [], [])
+
+    def test_rerun_is_identical(self):
+        entries = [("lib/a.so", "lib/a.so"), ("vendor/firmware/x.bin", "vendor/firmware/x.bin")]
+        extract(self.image, DEBUGFS, entries, self.out)
+        first = self.files()
+        extract(self.image, DEBUGFS, entries, self.out)
+        self.assertEqual(self.files(), first)
+        self.assertEqual(sorted(os.listdir(self.out)), ["device-vendor.mk", "proprietary"])
+        self.assertEqual(os.listdir(self.out.parent), ["vendor"])
 
 
 if __name__ == "__main__":
