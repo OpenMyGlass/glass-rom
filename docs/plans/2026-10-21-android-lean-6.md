@@ -107,7 +107,7 @@
 | Sensors | 1.1 | adds 1.2-1.4 | 1.0/1.1 still work; SensorService emulates batch/flush below 1.1 and adds virtual fusion sensors when missing; add significant motion (Doze) |
 | Camera | up to 3.1 | 3.2/3.3 | HAL1 still supported, with the camera2 "HAL1 shim"; TI's OMX HAL1 over Ducati stays |
 | hwcomposer | up to 1.3 | 1.4/1.5 | the TI HWC 1.1 composer still loads |
-| Power | 0.2 | 0.3 | adds `POWER_HINT_LOW_POWER` and `setFeature` |
+| Power | 0.2 | 0.3 | `POWER_HINT_LOW_POWER` (from 5.0) and `setFeature` (0.3) |
 
 - Bluetooth moved from `external/bluetooth/bluedroid` to `system/bt`. The vendor `libbt-vendor` interface is the same family; rebuild it.
 - SELinux: 6.0's init only warns when a service has no domain, but enforcing is expected from 5.0 on. The device tree boots permissive now (`androidboot.selinux=permissive`); writing the policy is a task here.
@@ -175,7 +175,7 @@ The same items as Track A, Task 4, with these 6.0 differences:
 |---|---|---|---|
 | Unused services | `config.disable_telephony`/`_media` are gone in 6.0; remove telephony by not building `TeleService`/`TelephonyProvider` and setting `config_voice_capable=false`, `config_sms_capable=false`; `config.disable_networktime` if time comes from the phone link | fewer threads in system_server | apps calling `TelephonyManager` must get "no phone" |
 | Unused apps | as Track A; 6.0 also adds `PrintSpooler`, `Telecom`, `ExternalStorageProvider`, `BasicDreams`, `PhotoTable`, `WallpaperCropper`: drop what Glass does not use; keep `Telecom` only if Bluetooth audio needs it (check) | smaller image and first boot | same as Track A |
-| dex2oat policy | `WITH_DEXPREOPT := true` with `WITH_DEXPREOPT_PIC := true` (already set): the system is compiled at build time, so first boot is short; `dalvik.vm.dex2oat-filter=speed` for system, `space` or `interpret-only` for user apps through `dalvik.vm.dex2oat-filter`; `dalvik.vm.dex2oat-threads=2` (two cores); keep `dex2oat-swap` | shorter install, less `/data` | installs slower with one thread less; `interpret-only` costs CPU at run time |
+| dex2oat policy | `WITH_DEXPREOPT := true` with `WITH_DEXPREOPT_PIC := true` (already set): the system is compiled at build time with the filter of `PRODUCT_DEX_PREOPT_DEFAULT_FLAGS` (`speed`), so first boot is short; `dalvik.vm.dex2oat-filter` is one global value for what installd compiles on the device, `space` (or `interpret-only`); keep `dex2oat-swap`. A per-package override needs an installd patch as in Track A | shorter install, less `/data` | `interpret-only` costs CPU at run time; a global filter also applies to system apps updated on the device |
 | Heap for 640x360 | `dalvik.vm.heap*` as in Track A; 6.0's ART has the moving collector, so fragmentation is lower and smaller heaps hold up better | more processes cached | large bitmaps fail as in Track A |
 | `ro.config.low_ram` | in 6.0 it also cuts background service starts to 1 | less background work at boot and on network changes | slower to deliver push messages to apps; measure |
 | LMK | 1 GB lands on the high `minfree` table (72-180 MB); for a 640x360 device lower `config_lowMemoryKillerMinFreeKbytesAdjust` after measurement | more processes cached | jank if free memory runs out; measure |
@@ -201,14 +201,14 @@ The same items as Track A, Task 4, with these 6.0 differences:
 - Create (R3 sensors HAL, its own plan): a significant-motion sensor.
 
 - [ ] **Step 1:** Write the Doze design into the R3 sensors plan and the R4 services plan:
-  - significant motion reports "moved" whenever Glass is on the head (glasshub on-head), so Doze cannot start while Glass is worn;
+  - significant motion reports "moved" whenever Glass is on the head (glasshub on-head), so Doze cannot start while Glass is worn. Significant motion is a one-shot trigger sensor: this relies on `DeviceIdleController` re-arming it each time it enters IDLE_PENDING, an assumption to check in the source and on the device;
   - off the head, it reports only real motion.
 - [ ] **Step 2:** Set `device_idle_constants` for a device that is either worn or lying on a table:
   - `inactive_to` 10 min instead of 30;
   - `sensing_to` 1 min;
   - `locating_to` 0, since there is no GPS fix indoors and a location is not needed for this.
 
-  These are settings, not code. Write them as a default in our settings provider overlay.
+  6.0's `SettingsProvider` has no default for `device_idle_constants` (`DatabaseHelper.java` never loads it), so this needs a small `loadSetting` patch in our fork, or the R4 service writes it at first boot.
 - [ ] **Step 3:** Until the sensor exists, Doze cannot start on its own, as the source says. Do not enable `config_enableAutoPowerModes` before Step 1 is done, or App Standby alone runs without Doze.
 - [ ] **Device checks (not run):**
   - `dumpsys deviceidle` shows the states advancing off-head with the screen off;
@@ -224,7 +224,7 @@ The same items as Track A, Task 4, with these 6.0 differences:
 
 ### Task 6: HALs, SELinux and init for 6.0
 
-- [ ] **Step 1:** The power, lights, audio, sensors and camera HALs come from R3, which already targets 6.0 on the device tree's default branch. Here, only check API versions: power 0.2 is fine, sensors 1.1 or newer for batching, HWC 1.1.
+- [ ] **Step 1:** The power, lights, audio, sensors and camera HALs come from R3, which already targets 6.0 on the device tree's default branch. Here, only check API versions: power 0.2 is fine; sensors exactly 1.1, the newest 4.4 loads, if one HAL serves both tracks (1.3 would need a separate Track B build); HWC 1.1.
 - [ ] **Step 2:** Bluetooth: rebuild `libbt-vendor` for `system/bt`; check the device tree's `bluetooth/` config.
 - [ ] **Step 3:** SELinux:
   - write `sepolicy/` for the device nodes in `docs/hardware-facts.md` (pvrsrvkm, dsscomp, tiler, rpmsg, glasshub, IIO, si114x);

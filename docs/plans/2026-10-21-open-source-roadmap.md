@@ -70,13 +70,13 @@ Decided with the owner on 2026-10-21. This closes the earlier open question of w
 
 | Track | Android | Runtime | Why | Plan |
 |---|---|---|---|---|
-| A | 4.4.4 KitKat | **ART only**: Dalvik (`libdvm`, `dexopt`) not built, everything compiled by `dex2oat` | Near-term target: Glass's binaries (PowerVR user space, camera, sensors, GPS) were built for KitKat and run without shims. ART is already in XE24's image (stock runs Dalvik) | [`2026-10-21-android-lean-kitkat-art.md`](2026-10-21-android-lean-kitkat-art.md) |
+| A | 4.4.4 KitKat | **ART only**: Dalvik (`libdvm`, `dexopt`) not built, everything compiled by `dex2oat` | Near-term target: Glass's binaries (PowerVR user space, audio, camera, sensors, GPS) were built for KitKat and run without shims. ART is already in XE24's image (stock runs Dalvik) | [`2026-10-21-android-lean-kitkat-art.md`](2026-10-21-android-lean-kitkat-art.md) |
 | B | 6.0.1 Marshmallow | ART | The most app-compatible system that still runs Glass's binaries (as LineageOS 13 and Unlegacy-Android did on other OMAP4 devices), and the Android version meant to bridge to the mainline kernel | [`2026-10-21-android-lean-6.md`](2026-10-21-android-lean-6.md) |
 
-Optimisations from later Android versions are backported to KitKat where the gain is worth the cost. The ranked list is in Track A's plan, Task 5. The cheap gains are planned:
+Optimisations from later Android versions are backported to KitKat where the gain is worth the cost. The ranked list is in Track A's plan, Task 5. The cheap gains are planned, among them:
 - a Doze-like idle service of our own, driven by glasshub's on-head signal;
 - low-memory-killer and `extra_free_kbytes` tuning;
-- a per-app dex2oat filter.
+- default dex2oat filters for system and user apps, with a per-package override.
 
 The heavy ones are **not planned**: JobScheduler and Doze in the framework, Lollipop's ART, and the 5.x/6.x memory trimming. No public port of any of them to KitKat was found.
 
@@ -84,7 +84,7 @@ Long-term goal: the mainline kernel and the most compatible apps, so Track B on 
 
 ### Tracks and routes
 
-- **Route 1 (open Android) now means both tracks.** The R3 HALs are written once, against API levels both versions load: audio 2.0, sensors 1.1 or newer, camera HAL1 over Ducati, hwcomposer 1.1, power 0.2. The R4 services and R5 apps stay independent of Android, as written above, so they also serve route 2.
+- **Route 1 (open Android) now means both tracks.** The R3 HALs are written once, against API levels both versions load: audio 2.0, sensors exactly 1.1 (4.4 loads nothing newer), camera HAL1 over Ducati, hwcomposer 1.1, power 0.2. The R4 services and R5 apps stay independent of Android, as written above, so they also serve route 2.
 - **Route 2 (plain Linux)** is unaffected. Its components are shared with both tracks.
 - **Route 3 (mainline)** is where Track B is meant to go in the long term (see below).
 
@@ -153,5 +153,7 @@ Each runs with the same kernel variant where possible (stock XE24 runs its own),
 | App start | cold and warm start of 5 test apps (`am start -W`) | 10 each |
 | RAM | `dumpsys meminfo` and `procrank` after boot and after starting the test apps; `/proc/meminfo` free plus cached; zRAM use (`/sys/block/zram0/mem_used_total`) | 3 |
 | Compile cost (A and B) | first-boot `dex2oat` time, `/data/dalvik-cache` size, install time of a 10 MB APK | 3 |
+
+Before the first boot of each track, `/data` is backed up with `adb backup`/`adb pull` from stock. A track booted with `fastboot boot` still uses stock's `/data`: Track A finds Dalvik's `persist.sys.dalvik.vm.lib` and odex files in `/data/dalvik-cache`, and Track B upgrades the settings and package databases so stock may not boot on them again. So `userdata` and `cache` are wiped before each track and again to go back to stock, through `tools/fastboot-guard.sh --i-understand erase` (both partitions are on its allowlist; `-w` is refused). Never `bootloader`, `xloader` or `fpga`.
 
 Results go into `reports/` of glass-rom with the raw logs, and the default track is chosen from them.

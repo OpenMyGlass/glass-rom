@@ -78,7 +78,7 @@ Each fact names where it was read. AOSP paths are at tag `android-4.4.4_r2` on a
 
 **Other facts:**
 - Alarm batching is already in 4.4: `AlarmManager` makes `set()`/`setRepeating()` inexact and batched for apps with `targetSdkVersion >= 19`; older apps keep exact alarms (`frameworks/base/core/java/android/app/AlarmManager.java`).
-- `SystemServer.java` (4.4) skips groups of services when these properties are true: `config.disable_storage`, `config.disable_media`, `config.disable_bluetooth`, `config.disable_telephony`, `config.disable_location`, `config.disable_systemui`, `config.disable_noncore`, `config.disable_network`.
+- `SystemServer.java` (4.4) skips groups of services when these properties are true: `config.disable_storage`, `config.disable_media`, `config.disable_bluetooth`, `config.disable_location`, `config.disable_systemui`, `config.disable_noncore`, `config.disable_network`. It also declares `config.disable_telephony` but never reads it, so it does nothing.
 - `bionic/libc/arch-arm/cortex-a9/cortex-a9.mk` provides A9-tuned `memcpy`, `memset`, `strcat`, `strcmp`, `strcpy` and `strlen`, selected by `TARGET_CPU_VARIANT := cortex-a9`.
 - `build/core/combo/arch/arm/armv7-a-neon.mk` has no `cortex-a9` case. For that variant it emits `-march=armv7-a -mfpu=neon` (not `-mcpu=cortex-a9`) and links with `-Wl,--fix-cortex-a8`, a workaround for a Cortex-A8 erratum that the A9 does not have.
 - Heap presets in `frameworks/native/build/` (4.4): `phone-hdpi-512` is 5m/48m/128m with maxfree 2m; `phone-xhdpi-1024`, which the device tree inherits now, is 8m/96m/256m with maxfree 8m.
@@ -146,21 +146,21 @@ Each fact names where it was read. AOSP paths are at tag `android-4.4.4_r2` on a
 ### Task 3: Compile cost: first boot, install, storage
 
 **Files:**
-- Modify (forks): `art` (filter selection), `frameworks/native/cmds/installd/commands.c` (`run_dex2oat` passes `--runtime-arg -compiler-filter:<filter>` from a property).
-- Modify (device tree): `system.prop` (`ro.glass.dex2oat-filter`, our own property, since 4.4 has no `dalvik.vm.dex2oat-filter`).
+- Modify (fork): `frameworks/native/cmds/installd/commands.c`. `run_dex2oat` passes `--runtime-arg -compiler-filter:<filter>`, which 4.4's dex2oat accepts. The filter comes from `persist.glass.dex2oat-filter.system` for packages under `/system`, `persist.glass.dex2oat-filter.user` for the others, and `persist.glass.dex2oat-filter.<package>` as a per-package override. These are our own properties, since 4.4 has no `dalvik.vm.dex2oat-filter`, and they are `persist.` so they change without a rebuild.
+- Modify (device tree): `system.prop` (the defaults of those properties).
 
 - [ ] **Step 1: Filter policy.**
   - Boot image: keep `speed`, or `everything` as now. It is compiled once, and every process maps it.
   - System apps: `speed`.
-  - User apps: `space` by default. `speed` stays one property away.
-  - `interpret-only` is the fallback for an app that dex2oat fails on or that takes too long. Size it against `/data`: Glass has a 16 GB eMMC (`BOARD_USERDATAIMAGE_PARTITION_SIZE` is about 13 GiB), so storage is not tight, but compile time on the device is.
+  - User apps: `space` by default; `setprop persist.glass.dex2oat-filter.user speed` switches back.
+  - `interpret-only`, through the per-package property, is the fallback for an app that dex2oat fails on or that takes too long. Size it against `/data`: Glass has a 16 GB eMMC (`BOARD_USERDATAIMAGE_PARTITION_SIZE` is about 13 GiB), so storage is not tight, but compile time on the device is.
   - Do not build ART in small mode globally: it would make everything interpreted, which costs CPU at run time.
 - [ ] **Step 2: Bound the first boot.** Show "optimising apps" progress (4.4 already does, through `PackageManagerService` `performBootDexOpt`). Keep the system image small (Task 4) so there is less to compile.
   - Target: first boot under 10 minutes on the device. This is unverified: nothing was measured on an A9 at 1 GHz.
 - [ ] **Step 3: Optionally compile at build time** with a host `dex2oat`. 4.4's build cannot do this (no `dex_preopt_libart.mk`); a backport of 5.0's would take changes in `build/core` and `art/build`.
   - Mark as **not planned now**: first boot happens once, and 5.0's ART preopt depends on 5.0's image layout.
   - Revisit if the measured first boot is over 15 minutes.
-- [ ] **Step 4:** Build. Expected: installd and art compile, and `getprop ro.glass.dex2oat-filter` is set in `build.prop`.
+- [ ] **Step 4:** Build. Expected: installd compiles, and `build.prop` sets the two default filter properties.
 - [ ] **Device checks (not run):**
   - first-boot time (from `fastboot boot` to `sys.boot_completed=1`);
   - `/data/dalvik-cache` size;
@@ -173,19 +173,19 @@ Each item is one property or one makefile line and can be reverted alone. The "E
 
 | Item | How | Expected effect | Risk |
 |---|---|---|---|
-| Remove unused services | `config.disable_telephony=true` (Glass is Wi-Fi only), `config.disable_media` stays false (camera, audio), others stay; drop `TelephonyProvider`, `Phone`, `Mms` if present, wallpaper services, `DreamManager` users, print spooler, NFC | fewer threads and binder objects in system_server, roughly a few MB of RAM | an app that calls `TelephonyManager` must get "no phone", not a crash; check with a few apps |
+| Remove unused services | Glass is Wi-Fi only: do not build `TeleService`/`Phone`, `TelephonyProvider` or `Mms`, and set `config_voice_capable=false` and `config_sms_capable=false` (4.4's `config.disable_telephony` does nothing); `config.disable_media` stays false (camera, audio); drop wallpaper services, `DreamManager` users, print spooler, NFC | fewer threads and binder objects in system_server, roughly a few MB of RAM | an app that calls `TelephonyManager` must get "no phone", not a crash; check with a few apps |
 | Remove unused apps | Build only what the Glass system needs: no Browser, Calendar, Contacts UI, Email, Gallery, Launcher2/3, Music, live wallpapers, Camera2, DeskClock, LatinIME (input comes from the phone) | smaller system image, less to dex2oat at first boot, less RAM | an app that expects a stock intent handler (`ACTION_VIEW` for a URL) finds none; keep `PackageInstaller`, `DocumentsUI`, `DownloadProvider` |
 | `ro.config.low_ram=true` | `system.prop` | fewer cached processes, smaller recents, no live wallpapers, some system UI drawn in software | Aimed at 512 MB. On 1 GB it may cost smoothness (persistent processes lose hardware acceleration). Try it and measure; it is one property. Decision for the owner after measurement |
 | zRAM | already 128 MiB in stock XE24; keep, `page-cluster 0`, try 25% of RAM (256 MiB on 1 GB, 512 MiB on XE-C) | more apps stay cached, fewer cold starts | compression costs CPU; LZO on an A9 is cheap but not free; measure swap-in rates |
 | KSM | `CONFIG_KSM` (glass-kernel, `tuned` config), `run 1`, `pages_to_scan 100`, `sleep_millisecs 500` | a few MB saved across zygote children | the scanner thread wakes every 500 ms and costs battery; turn it off if idle drain grows |
 | Preloaded classes trimming | Ship a `preloaded-classes` list cut down to the classes Glass's processes use, generated from our own system with 4.4's `frameworks/base/tools/preload` | smaller zygote and boot image, faster boot | classes not preloaded load per process on first use, a small start-up cost; regenerate when the app set changes |
-| Preloaded resources trimming | Overlay `config.xml`/`preloaded_drawables`: drop drawables for the status bar, notification shade and phone UI that never show | a few MB less zygote memory | none known, as long as the list only removes |
+| Preloaded resources trimming | Overlay `preloaded_drawables` (in `arrays.xml`): drop drawables for the status bar, notification shade and phone UI that never show | a few MB less zygote memory | none known, as long as the list only removes |
 | Heap sizing for 640x360 | Replace `phone-xhdpi-1024-dalvik-heap.mk` with values sized for the screen: start at `phone-hdpi-512` (5m/48m/128m, maxfree 2m) and compare with XE24's 5m/72m/192m | smaller per-app heaps, more processes fit | apps that load large bitmaps get `OutOfMemoryError`; `largeHeap` apps keep 128m. A 640x360 ARGB frame is 0.9 MB, so 48m is still 50 frames |
 | Remove the Dalvik JIT setting | drop `dalvik.vm.jit.codecachesize` (does nothing under ART) | cleanliness only | none |
 | Alarm batching | already in 4.4 for `targetSdkVersion >= 19`; our services and apps target 19 and use `setWindow`/inexact alarms | fewer wakeups | none for us; old apps keep exact alarms |
 | Wakeup reduction | audit wakelocks with `dumpsys power`/`batterystats` on the device; set `wifi.supplicant_scan_interval` (already 60 s), turn off `NetworkLocationProvider` scanning when no app asks | less idle drain | none known |
-| Sensor batching through glasshub | head-gesture and on-head detection use glasshub's own detection (activity threshold and timeout in its sysfs) instead of the application processor polling the IMU | the A9 sleeps while the wearer is still; the largest idle-drain item in a head-worn device | needs the R4 glasshub spec; until then use the IMU at the lowest rate that works |
-| Log reduction | userdebug for development, `user` for daily use; `persist.logd.size` does not exist in 4.4 (logger is a kernel driver): shrink `/dev/log/main` in the kernel config (`CONFIG_LOGGER` buffer sizes, glass-kernel), `log.tag` defaults to `I` | less CPU and RAM spent on logging | harder debugging; keep userdebug builds |
+| Sensor batching through glasshub | head-gesture and on-head detection use glasshub's own detection (activity threshold and timeout in its sysfs) instead of the application processor polling the IMU | the A9 sleeps while the wearer is still; probably a large idle-drain item on a head-worn device (unmeasured) | needs the R4 glasshub spec; until then use the IMU at the lowest rate that works |
+| Log reduction | userdebug for development, `user` for daily use; `persist.logd.size` does not exist in 4.4 (logger is a kernel driver): shrink the `/dev/log/*` buffers, which are fixed in `drivers/staging/android/logger.c` (a source change in glass-kernel, not a config option); our own code logs below `I` only behind `Log.isLoggable` | less CPU and RAM spent on logging | harder debugging; keep userdebug builds |
 | Cortex-A9 code generation | `TARGET_CPU_VARIANT := cortex-a9` (A9 bionic string routines), and a one-case patch to `armv7-a-neon.mk` so the variant emits `-mcpu=cortex-a9 -mfpu=neon` and `--no-fix-cortex-a8` | a few percent faster native code, mostly in string and memory copies | the build mixes A9-tuned and generic code; harmless. GCC 4.7/4.8 support `-mcpu=cortex-a9` |
 | hwcomposer from source | roadmap R3: TI's OMAP4 hwcomposer (`hardware/ti/omap4`) over `dsscomp` | overlays compose without the GPU, so the GPU sleeps more | must match the kernel's `dsscomp` interface; R3 plan |
 | SystemUI minimal | Glass has no status bar or navigation bar: `config_showNavigationBar=false`, no status bar window (overlay), keep SystemUI's power warnings (low battery, thermal) and volume UI, or move them into our Glass service | less RAM (SystemUI is one of the largest persistent processes) and fewer redraws | `config.disable_systemui=true` would also remove the low-battery warning and the wallpaper; do not use it unless those move elsewhere |
@@ -211,7 +211,7 @@ Ranked by gain for Glass against cost. Only the first group is planned.
 | 1 | Doze-like idle as a small service of our own: when the screen is off and the wearer is off-head (glasshub), defer alarms with `AlarmManager` batching, turn off Wi-Fi scans, hold the CPU in suspend | large: Glass's idle drain comes from wakeups | small: our own service using public 4.4 APIs and the glasshub on-head signal, no framework surgery | **planned**, with R4 |
 | 2 | `extra_free_kbytes` and LMK `minfree` tuning (4.4 already has the knobs) | medium: fewer jank-causing direct reclaims | small: config values | **planned** |
 | 3 | `onTrimMemory` handling in our own services and apps | medium | small | **planned** (applies to our code only) |
-| 4 | dex2oat filter per app and a `space` default | medium: shorter installs and first boot | small: Task 3's installd patch | **planned** (Task 3) |
+| 4 | dex2oat filter defaults for system and user apps, a per-package override and a `space` default | medium: shorter installs and first boot | small: Task 3's installd patch | **planned** (Task 3) |
 | 5 | Selected later ART bug fixes, cherry-picked one by one when a real app fails on 4.4 ART | case by case | medium: 4.4's ART diverges fast from 5.0's | **when needed**, each fix with a test app |
 | 6 | JobScheduler (5.0) as a framework service | small: our services schedule with alarms already; third-party apps that need it fall back to their compat libraries (JobSchedulerCompat, Firebase JobDispatcher, WorkManager on AlarmManager) | high: new system service, binder API, permissions, framework hidden API | **not planned**: the compat libraries already cover apps |
 | 7 | Doze and App Standby (6.0) in the framework | medium over rank 1 | high: `DeviceIdleController` depends on 6.0's `AlarmManager`, `PowerManager` and network policy changes | **not planned**: rank 1 gets most of the gain on a device whose idle state glasshub already knows |
@@ -225,7 +225,7 @@ Ranked by gain for Glass against cost. Only the first group is planned.
 
 - [ ] **Step 1: App test list.** Pick about 20 apps a Glass user plausibly installs: a few GDK samples (open-source), a music player, a podcast app, a navigation app, a notes app, a camera app, a terminal and so on, in versions that support API 19.
   - The GDK's `com.google.android.glass` library is Google's and is not shipped. GDK apps need a clean-room stub library. That belongs to R5 and is out of scope here.
-- [ ] **Step 2: CheckJNI.** Turn it on in userdebug (`ro.kernel.android.checkjni=1` on 4.4) for the test pass only.
+- [ ] **Step 2: CheckJNI.** Turn it on for the test pass only with `setprop dalvik.vm.checkjni true` (not `ro.`, so it can be turned off again; `ro.kernel.android.checkjni` is only the fallback when it is unset).
 - [ ] **Step 3: Fallbacks per failure:**
   - (a) the `interpret-only` filter for that app;
   - (b) a cherry-picked ART fix (Task 5, rank 5);
