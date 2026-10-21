@@ -33,7 +33,7 @@ tools/render_packages.py factory/inventory.json debloat/xe24-packages.tsv docs/x
 Vendor extraction (needs `debugfs`; takes the raw system image from above):
 
 ```sh
-tools/extract_vendor.py factory/system.raw path/to/android_device_glass_glass-1/proprietary-files.txt $AOSP/vendor/glass/glass-1
+tools/extract_vendor.py factory/system.raw $AOSP/device/glass/glass-1/proprietary-files.txt $AOSP/vendor/glass/glass-1
 ```
 
 The output contains Google binaries and stays on the owner's machine.

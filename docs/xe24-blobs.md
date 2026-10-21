@@ -1,6 +1,6 @@
 # XE24 vendor binaries
 
-Proprietary files that the build extracts from the owner's XE24 factory image (`glass_1-img-5585826`, SHA-256 `76a9d382…2363`). This page holds facts only (path, size, SHA-256, short notes). The files themselves are never committed. It was produced offline:
+Proprietary files that the build extracts from the owner's XE24 factory image (`glass_1-img-5585826`, SHA-256 `76a9d3822077e993bba62c586e5e7cbb1217a81171d78033ff7c06ba285f2363`). This page holds facts only (path, size, SHA-256, short notes). The files themselves are never committed. It was produced offline:
 
 ```sh
 tools/fetch-factory.sh factory/
@@ -18,7 +18,7 @@ Notes:
 
 Phase R2 compares these with the OMAP4-AOSP `pvr-source`.
 
-- Stock kernel module `/lib/modules/pvrsrvkm_sgx540_120.ko` (3647097 bytes, SHA-256 `a4a60b4e…afc`, not extracted by the list): `SGX_DDK_Android sgxddk 19 1.9@2166536`.
+- Stock kernel module `/lib/modules/pvrsrvkm_sgx540_120.ko` (3647097 bytes, SHA-256 `a4a60b4e3cfd4ff010e9c3300abf484171e5f291b3b7b5fd695f74e3b3e58afc`, not extracted by the list): `SGX_DDK_Android sgxddk 19 1.9@2166536`.
 - Its `vermagic`: `3.4.94-01990-g1cee760235d SMP preempt mod_unload modversions ARMv7 p2v8`.
 - Its build path names `eurasia_km/eurasiacon/binary2_540_120_omap4430_android_release` under `ti_gfx/img-ddk-linux-android`.
 - `libsrv_um_SGX540_120.so`: no version string (no `SGX DDK`, `@(#)` or `1.9@` match); it only carries the error names `PVRSRV_ERROR_BUILD_MISMATCH` and `PVRSRV_ERROR_DDK_VERSION_MISMATCH`.
