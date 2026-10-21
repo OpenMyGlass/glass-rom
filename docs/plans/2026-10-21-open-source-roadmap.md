@@ -16,7 +16,7 @@ Each phase gets its own plan in `docs/plans/` of the repo that owns most of its 
 | # | Phase | Repos | Result |
 |---|---|---|---|
 | R1 | Vendor extraction and a device tree without Google files | glass-rom, android_device_glass_glass-1 | `extract_vendor.py` fills `vendor/glass/glass-1/` from the owner's image; the tree has new `rootdir/` files and passes its own checks. Plan: [`2026-10-21-vendor-extraction.md`](2026-10-21-vendor-extraction.md). |
-| R2 | Kernel: GPU module from source, then low-risk tuning | glass-kernel | `pvrsrvkm_sgx540_120.ko` built from OMAP4-AOSP `pvr-source` (MIT/GPL-2.0) once its DDK version matches XE24's user-space libraries. With the binary module gone, the config cleanups that change struct layouts become possible. Then, from `reports/Ottimizzazioni kernel OMAP4.md`, only items rated no or low risk: interactive backports (`io_is_busy`, per-frequency `above_hispeed_delay`), the xrr02 input-boost handler, linux-3.4.y stable up to 3.4.113, and a check of the XE-C 2 GB memory map. No overclock, undervolt or raised thermal limit. |
+| R2 | Kernel: GPU module from source, then low-risk tuning | glass-kernel | Done: `pvrsrvkm_sgx540_120.ko` is built from Imagination's DDK at XE24's exact build, `1.9@2166536` (MIT/GPL-2.0), and imports the same kernel symbols with the same CRCs as the stock module (glass-kernel phase 3). OMAP4-AOSP's `pvr-source` is `1.9@2291151` and would not match XE24's user-space libraries. With the binary module gone, the config cleanups that change struct layouts become possible. Then, from `reports/Ottimizzazioni kernel OMAP4.md`, only items rated no or low risk: interactive backports (`io_is_busy`, per-frequency `above_hispeed_delay`), the xrr02 input-boost handler, linux-3.4.y stable up to 3.4.113, and a check of the XE-C 2 GB memory map. No overclock, undervolt or raised thermal limit. |
 | R3 | Open HALs | android_device_glass_glass-1 | power HAL (interactive values, boostpulse, screen-off cap), lights, audio (finish `android-6.0.1_r31-audio`), sensors over IIO, camera from TI's OMAP4 HAL on top of the Ducati blob. Each removes one entry from `proprietary-files.txt`. |
 | R4 | Glass system services, clean-room | new repo | touchpad gestures, head gestures, on-head and wink detection (needs the glasshub protocol), screen wake. Spec written from observations, code written only from the spec. |
 | R5 | Glass apps, clean-room | new repo | card timeline launcher at 640×360, settings, setup, camera, voice with an open hotword; dictation goes through OpenMyGlass to the phone. |
@@ -50,6 +50,16 @@ How R4 and R5 are written so that route 2 stays open:
 - This covers the glasshub protocol (wink, on-head), touchpad and head gestures, the card timeline, and voice through the phone.
 - Android-specific glue (system services, intents, the launcher wrapper) stays in a separate layer.
 - Once a Glass is available, battery drain, temperature and smoothness are measured on routes 1 and 2 with the same components, and the main route is picked from the measurements.
+
+### Kernel versions
+
+Decided with the owner on 2026-10-21:
+- **Now: stay on 3.4 and merge linux-3.4.y up to 3.4.113** (end of life, October 2016). That brings bug and security fixes and nothing new, such as schedutil. Prior work exists: invisiblek merged up to 3.4.105 on the Glass kernel, and Unlegacy-Android's OMAP4 trees (Galaxy Tab 2, Nook HD) are at 3.4.113.
+- **Not planned: Android 3.10 or 3.14 OMAP4 trees.** They would need all of the Glass board code, drivers and duty-cycle thermal governor ported, plus the 1.9 GPU module adapted. That costs almost as much as mainline for a much smaller gain.
+- **Long-term track: mainline,** together with route 2 and with [glass-xec-mainline](https://github.com/Lasimeri/glass-xec-mainline) instead of a separate effort.
+  - It is the only way to get schedutil, current power management and years of security fixes.
+  - It needs a device tree description of the board, drivers for the panel FPGA and glasshub, and the out-of-tree SGX driver (openpvrsgx, DDK `1.9@2188537`). That driver does not match XE24's Android libraries but fits a plain-Linux system.
+  - Boot debugging most likely needs a serial console. Whether one is reachable on the Glass is checked once a device is available, and no mainline work starts before that.
 
 ## Open decision
 
