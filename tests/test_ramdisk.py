@@ -83,12 +83,17 @@ class AddFileTest(unittest.TestCase):
         self.assertEqual(names.count("sbin"), 1)
         self.assertEqual(out[-1].data, b"new")
 
+    def test_refuses_a_parent_that_is_not_a_directory(self):
+        entries = sample() + [ramdisk.Entry(name="lib", mode=0o120777, data=b"/system/lib")]
+        with self.assertRaisesRegex(ramdisk.RamdiskError, "not a directory"):
+            ramdisk.add_file(entries, "lib/modules/m.ko", b"KO")
+
     def test_round_trips_through_cpio(self):
         out = ramdisk.read(ramdisk.write(ramdisk.add_file(sample(), "lib/modules/m.ko", b"KO")))
         self.assertIn(("lib/modules/m.ko", b"KO"), [(e.name, e.data) for e in out])
 
     def test_rejects_bad_paths(self):
-        for bad in ("/abs", "", "a/../b"):
+        for bad in ("/abs", "", "a/../b", "a//b", "./x", "a/"):
             with self.assertRaises(ramdisk.RamdiskError):
                 ramdisk.add_file(sample(), bad, b"")
 
@@ -109,6 +114,16 @@ class ReplaceLineTest(unittest.TestCase):
         for data in (b"on fs\n", self.RC + b"  insmod /a.ko\n"):
             with self.assertRaises(ramdisk.RamdiskError):
                 ramdisk.replace_line(self.entries(data), "init.x.rc", "insmod /a.ko", "x")
+
+    def test_keeps_crlf_on_the_edited_line(self):
+        data = b"on fs\r\n    insmod /a.ko\r\nend"
+        out = ramdisk.replace_line(self.entries(data), "init.x.rc", "insmod /a.ko", "insmod /b.ko")
+        rc = next(e for e in out if e.name == "init.x.rc")
+        self.assertEqual(rc.data, data.replace(b"/a.ko", b"/b.ko"))
+
+    def test_non_utf8_is_a_ramdisk_error(self):
+        with self.assertRaises(ramdisk.RamdiskError):
+            ramdisk.replace_line(self.entries(b"\xff\xfe"), "init.x.rc", "a", "b")
 
     def test_fails_when_the_file_is_missing(self):
         with self.assertRaises(ramdisk.RamdiskError):

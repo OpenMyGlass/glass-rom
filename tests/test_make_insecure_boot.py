@@ -14,7 +14,7 @@ from test_ramdisk import sample  # noqa: E402
 RC = (b"on fs\n    mount_all /fstab.omap4430\n\n    # Load Required Kernel Modules\n"
       b"    insmod /system/lib/modules/pvrsrvkm_sgx540_120.ko\n\non boot\n")
 # Synthetic, not a real module: an ELF header, a vermagic and the DDK build string.
-OUR_KO = b"\x7fELF" + b"\0" * 60 + b"vermagic=3.4.94-g989d925 SMP\0SGX_DDK 1.9@2166536\0"
+OUR_KO = b"\x7fELF\x01\x01" + b"\0" * 12 + b"\x28\x00" + b"\0" * 44 + b"vermagic=3.4.94-g989d925 SMP\0SGX_DDK 1.9@2166536\0"
 
 
 def stock(rc=RC):
@@ -76,11 +76,12 @@ class PvrModuleTest(unittest.TestCase):
 
     def test_refuses_modules_that_are_not_ours(self):
         import hashlib
-        stock_ko = b"\x7fELF vermagic=x 1.9@2166536 stock"
+        stock_ko = OUR_KO + b" stock"
         cases = {
             b"not elf": "not an ELF",
-            b"\x7fELF no modinfo 1.9@2166536": "no vermagic",
-            b"\x7fELF vermagic=x 1.9@2291151": "not DDK 1.9@2166536",
+            OUR_KO[:20] + b" no modinfo 1.9@2166536": "no vermagic",
+            OUR_KO[:20] + b" vermagic=x 1.9@2291151": "not DDK 1.9@2166536",
+            OUR_KO[:18] + b"\x03\x00 vermagic=x 1.9@2166536": "not a 32-bit little-endian ARM",
         }
         for ko, msg in cases.items():
             with self.assertRaisesRegex(make_insecure_boot.PvrModuleError, msg):
@@ -134,14 +135,29 @@ class MainPvrTest(unittest.TestCase):
         out = self.run_main("--kernel", "@zImage", "--pvr-module", "@m.ko")
         self.assertIn("lib/modules/pvrsrvkm_sgx540_120.ko", files(out.read_bytes()))
 
-    def test_bad_module_exits_1_and_writes_nothing(self):
+    def test_bad_module_exits_1_and_removes_an_old_output(self):
+        import tempfile
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, d)
+        (d / "boot.img").write_bytes(stock())
+        (d / "m.ko").write_bytes(b"junk")
+        (d / "out.img").write_bytes(b"old image")
         with self.assertRaises(SystemExit) as cm:
-            self.run_main("--kernel", "@zImage", "--pvr-module", "@m.ko", ko=b"junk")
+            make_insecure_boot.main([str(d / "boot.img"), str(d / "out.img"),
+                                     "--pvr-module", str(d / "m.ko")])
         self.assertEqual(cm.exception.code, 1)
+        self.assertFalse((d / "out.img").exists())
 
     def test_both_options_are_refused(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(SystemExit) as cm:
             self.run_main("--pvr-module", "@m.ko", "--keep-stock-pvr")
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_module_without_kernel_keeps_the_stock_kernel(self):
+        out = self.run_main("--pvr-module", "@m.ko")
+        img = bootimg.parse(out.read_bytes())
+        self.assertEqual(img.kernel, bootimg.parse(stock()).kernel)
+        self.assertIn("lib/modules/pvrsrvkm_sgx540_120.ko", files(out.read_bytes()))
 
 
 if __name__ == "__main__":
