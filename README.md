@@ -17,7 +17,7 @@ Phase 1: fetching and verifying the factory image, plus boot image tools. These 
 
 ```sh
 tools/fetch-factory.sh factory/                       # download and verify (442 MB)
-tools/make_insecure_boot.py factory/boot.img out/boot-insecure.img [--kernel zImage]
+tools/make_insecure_boot.py factory/boot.img out/boot-insecure.img [--kernel zImage --pvr-module pvrsrvkm_sgx540_120.ko]
 tools/fastboot-guard.sh boot out/boot-insecure.img    # RAM only: nothing is written
 ```
 
@@ -37,6 +37,8 @@ tools/extract_vendor.py factory/system.raw $AOSP/device/glass/glass-1/proprietar
 ```
 
 The output contains Google binaries and stays on the owner's machine.
+
+A kernel from [glass-kernel](https://github.com/OpenMyGlass/glass-kernel) needs the GPU module from the same build (the `kernel-<variant>` CI artifact holds both `zImage` and `pvrsrvkm_sgx540_120.ko`). The stock XE24 module does not load into the `tuned` and `tuned-stable` kernels: 90 CRCs of the symbols it imports differ. `--pvr-module` puts our module in the ramdisk at `/lib/modules/pvrsrvkm_sgx540_120.ko` and changes the one `insmod /system/lib/modules/pvrsrvkm_sgx540_120.ko` line of `init.omap4430.rc` to load it from there. It refuses a file that is not a kernel module of DDK `1.9@2166536` (the build of XE24's user-space libraries), refuses the stock module itself, and fails if any `.rc` file still names the stock path. `--kernel` without `--pvr-module` is refused; `--keep-stock-pvr` overrides that, for glass-kernel's `stock` variant only, whose CRCs match the stock module's.
 
 `tools/bootimg.py info|unpack|pack` handles any Android v0 boot image. The stock XE24 `boot.img`, unpacked and repacked, comes out byte-identical.
 
