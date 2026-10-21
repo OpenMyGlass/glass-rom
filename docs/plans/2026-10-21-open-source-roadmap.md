@@ -101,6 +101,7 @@ Long-term goal: the mainline kernel and the most compatible apps, so Track B on 
 - **Display path.** This is the harder part. Glass's gralloc and the TI hwcomposer expect ION, TILER and `dsscomp`, and mainline has `omapdrm` with dma-buf instead. Android there needs a new gralloc and composer (`drm_hwcomposer` or our own HWC 1.x), plus the omapdrm-to-PVR glue that the Droid 4 port needed. No Android user space on mainline OMAP4 was found.
 - **Fallback.** Software rendering. On Android 6 that means Mesa softpipe/llvmpipe, since 6.0 has no SwiftShader and its own `libagl` is GLES 1 only. It is probably too slow for HWUI on an A9 (unverified). On plain Linux (route 2), software rendering is already the baseline.
 - **No open user-space SGX driver exists.** Mesa's PowerVR driver is Rogue-only (Series 6 and later). The only related effort found is a reverse-engineered DRI driver that still pairs with Imagination's DDK 1.17 libraries. Writing a fully open SGX540 user space is a multi-year reverse-engineering project and is **not planned**.
+- **Open SGX540 user space, effort per component:** [`gpu-open-userspace-estimate.md`](../gpu-open-userspace-estimate.md).
 - **Not used.** Unlegacy-Android also ships a newer SGX540 binary set (DDK `1.14@4081762`, for Android 7+, with kernel-module source updated for Linux 4.4). It is not from the owner's image, and its licence is unclear. Whether to use it is a decision for the owner.
 
 ## Build infrastructure
