@@ -8,7 +8,7 @@ tools/sparse.py factory/system.img factory/system.raw
 tools/extract_vendor.py factory/system.raw ../android_device_glass_glass-1/proprietary-files.txt /tmp/vendor-check
 ```
 
-The run wrote 36 files plus `device-vendor.mk`, exit 0, and reported no missing path. Sizes are in bytes. The table leaves out `/system/lib/hw/gps.omap4.so`: the GPS chip is not used (location comes from the phone), and the device tree has no GPS HAL ([device tree #4](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/4)). Rows marked "open" are no longer extracted: the device tree builds an open replacement.
+The run wrote 36 files plus `device-vendor.mk`, exit 0, and reported no missing path. Sizes are in bytes. The table leaves out `/system/lib/hw/gps.omap4.so`: the GPS chip is not used (location comes from the phone), and the device tree has no GPS HAL ([device tree #4](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/4)). Rows marked "open" are no longer extracted on the device tree's `android-6.0.1_r31` branch, which builds an open replacement. On `android-4.4.4`, audio, audio policy and sensors are still extracted, and the three `libbltsville_*` files are not (`hardware/ti/omap4` installs them, [device tree #7](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/7)).
 
 Notes:
 - `ducati-m3-core0-2gb.xem3` is XE-C only; `ducati-m3-core0.xem3` is the other variant.

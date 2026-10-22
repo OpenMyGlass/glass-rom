@@ -26,7 +26,7 @@
   - Non-graphics shims seen: `libsecril-shim` (tuna RIL) and `libgpsd-compat` (espresso GPS).
 - **Properties** from `hardware/ti/omap4`'s `omap4.mk`: `ro.hwui.disable_scissor_opt=true`, `debug.hwui.render_dirty_regions=false`, `debug.hwui.swap_with_damage=false`, `ro.egl.destroy_after_detach=true`, `camera2.portability.force_api=1`. Espresso adds `ro.bq.gpu_to_cpu_unsupported=1` and `dalvik.vm.dex2oat-flags=--no-watch-dog` (`LineageOS/android_device_samsung_espresso-common` cm-13.0).
 - **Glass's GPU binaries fit this path.** XE24 has `libIMGegl_SGX540_120.so` (`1.4 build 1.9@2166536`) next to `libEGL_POWERVR_SGX540_120.so` (`docs/xe24-blobs.md`), which is the layout the open wrapper expects. Glass is on `1.9@2166536`, not `2291151`, so the wrapper and framework patches must be checked against our build. glass-kernel builds the matching kernel module (`1.9@2166536`).
-- **hwcomposer.** XE24 has no `hwcomposer` blob in our list. The open HWC 1.1 composer in `hardware/ti/omap4` `hwc/` (commit a3c66065) is roadmap R3's hwcomposer. Unlegacy later replaced it with a proprietary composer (46ffaa04).
+- **hwcomposer.** XE24 has no `hwcomposer` blob in our list. The open HWC 1.0 composer (`HWC_DEVICE_API_VERSION_1_0`) in `hardware/ti/omap4` `hwc/` (commit a3c66065) is roadmap R3's hwcomposer. Unlegacy later replaced it with a proprietary composer (46ffaa04).
 - **Problems the tuna cm-13.0 port hit** (`LineageOS/android_device_samsung_tuna`, cm-13.0 log):
   - dexpreopt was turned off for `/system` space and later turned back on;
   - zRAM was turned off;
@@ -106,7 +106,7 @@
 | Audio | 2.0 | adds 3.0 | the 2.0 HAL still loads; R3 audio targets 6.0 already (`android-6.0.1_r31-audio`) |
 | Sensors | 1.1 | adds 1.2-1.4 | 1.0/1.1 still work; SensorService emulates batch/flush below 1.1 and adds virtual fusion sensors when missing; add significant motion (Doze) |
 | Camera | up to 3.1 | 3.2/3.3 | HAL1 still supported, with the camera2 "HAL1 shim"; TI's OMX HAL1 over Ducati stays |
-| hwcomposer | up to 1.3 | 1.4/1.5 | the TI HWC 1.1 composer still loads |
+| hwcomposer | up to 1.3 | 1.4/1.5 | the TI HWC 1.0 composer still loads |
 | Power | 0.2 | 0.3 | `POWER_HINT_LOW_POWER` (from 5.0) and `setFeature` (0.3) |
 
 - Bluetooth moved from `external/bluetooth/bluedroid` to `system/bt`. The vendor `libbt-vendor` interface is the same family; rebuild it.

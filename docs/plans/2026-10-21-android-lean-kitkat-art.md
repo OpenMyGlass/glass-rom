@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build an Android 4.4.4 system for Glass Explorer from source that runs **ART only**: Dalvik (`libdvm`, `dexopt`) is not built, and all code is compiled by `dex2oat`. The system should use less CPU and RAM and run cooler than stock XE24 while keeping as many apps working as possible. This is the near-term target because Glass's binaries (PowerVR user space, audio, sensors, camera, GPS) were built for KitKat and run on it without shims.
+**Goal:** Build an Android 4.4.4 system for Glass Explorer from source that runs **ART only**: Dalvik (`libdvm`, `dexopt`) is not built, and all code is compiled by `dex2oat`. The system should use less CPU and RAM and run cooler than stock XE24 while keeping as many apps working as possible. This is the near-term target because Glass's binaries (PowerVR user space, audio, sensors, camera) were built for KitKat and run on it without shims.
 
 **Architecture:**
 - Base: AOSP `android-4.4.4_r2` with the OMAP4 hardware projects, plus our device tree on a KitKat branch of `android_device_glass_glass-1`. Whether `hardware/ti/omap4` comes from AOSP, CyanogenMod cm-11.0 or Unlegacy-Android is chosen in Task 1.
