@@ -2,7 +2,7 @@
 
 **Goal:** KitKat's ART was a preview: no shipped device ran it as the default runtime. Track A runs it as the only runtime, so it gets the ART fixes from later AOSP that apply to the 4.4 code. This document also covers the owner's request to get the most out of the compilers: the native toolchain (GCC 4.7) and ART's `dex2oat`.
 
-**Status:** fixes chosen and cherry-picked in [OpenMyGlass/android_art#1](https://github.com/OpenMyGlass/android_art/pull/1). The manifest pins them in [OpenMyGlass/manifest#5](https://github.com/OpenMyGlass/manifest/pull/5). The CI build is a compile and image check only. Nothing has run on a device.
+**Status:** fixes chosen and cherry-picked in [OpenMyGlass/android_art#1](https://github.com/OpenMyGlass/android_art/pull/1). The manifest pins them in [OpenMyGlass/manifest#5](https://github.com/OpenMyGlass/manifest/pull/5). The fork PR is merged with a merge commit (never squash or rebase): the backports must stay separate commits with their upstream authors, and `check_backports.py` checks them one by one. The CI build is a compile and image check only. Nothing has run on a device.
 
 **Parent plan:** [2026-10-21-android-lean-kitkat-art.md](2026-10-21-android-lean-kitkat-art.md), Task 5, rank 5.
 
@@ -33,18 +33,20 @@ Rank is gain for Glass against risk. "exact" means the same patch id as upstream
 | 4 | [`2ef33c3d`](https://android.googlesource.com/platform/art/+/2ef33c3dce17dabd9342ccf15cca5700487f2045) | `CardTable::ModifyCardsAtomic` handed the wrong card to the visitor for an unaligned scan end: heap corruption under the sticky and partial collectors | adapted: `RoundUp()` on `uintptr_t` instead of `AlignUp()` | low |
 | 5 | [`1279d12e`](https://android.googlesource.com/platform/art/+/1279d12eb94b7664fc839d4ef7f30c7d6b20e603) | `byte_cas` (card marking) shifted by a byte count as if it were bits | exact | low |
 | 6 | [`8db4a405`](https://android.googlesource.com/platform/art/+/8db4a405fe283d8769d5f38299d8692c009feb1a) | Miranda methods resolved from the wrong `DexCache` when a class in `classes.dex` implements an interface from `classes2.dex` (multidex apps) | adapted: `GetDeclaringClass()->GetDexCache()` | low |
-| 7 | [`22cb09b3`](https://android.googlesource.com/platform/art/+/22cb09b35e8eb30c016065f0eec4b3b96666de43) | dex2oat tried to compile classes whose superclass failed verification. They have no GC map, so dex2oat crashed | context only | low |
+| 7 | [`22cb09b3`](https://android.googlesource.com/platform/art/+/22cb09b35e8eb30c016065f0eec4b3b96666de43), [`2b5eaa2b`](https://android.googlesource.com/platform/art/+/2b5eaa2b49f7489bafdadc4b4463ae27e4261817) | dex2oat tried to compile classes whose superclass failed verification. They have no GC map, so dex2oat crashed. `2b5eaa2b` adds the `Runtime::IsCompiler()` guard that this needs in 4.4: the rejected-classes table exists only in dex2oat, so without the guard the device runtime would dereference NULL | `22cb09b3`: same change, only the context differs. `2b5eaa2b`: only its guard in `ClassLinker::VerifyClass()` | low |
 | 8 | [`004644fe`](https://android.googlesource.com/platform/art/+/004644fe87046b965442b1ee1008b7206817d187) | JNI `GetMethodID` on an interface did not find a method declared in a super-interface (`NoSuchMethodError` where Dalvik succeeded) | `jni_internal.cc` only; 4.4 has `FindInterfaceMethod()` already | low |
 | 9 | [`3a1444cc`](https://android.googlesource.com/platform/art/+/3a1444ccb92fb1b11d4943c3baa1f0a3abed4f10) | JNI `ExceptionDescribe()` with no pending exception aborted the process. Dalvik ignores it | adapted (4.4 uses `SirtRef`) | low |
 | 10 | [`8249b425`](https://android.googlesource.com/platform/art/+/8249b425ba81d804c222c746e31bfcac9516e759) | Verifier `CHECK` failure on a quickened `invoke-virtual` on `null` | without the test hunks (4.4's test already uses a plain `null`) | low |
 | 11 | [`ef809d09`](https://android.googlesource.com/platform/art/+/ef809d09cf0d28d999ac69969e4506d8afa4624d) | CheckJNI aborted on `NewDirectByteBuffer(addr, 0)` ([AOSP issue 63055](https://code.google.com/p/android/issues/detail?id=63055)) | exact | none: CheckJNI only |
 | 12 | [`ade73185`](https://android.googlesource.com/platform/art/+/ade731854d18839823e57fb2d3d67238c5467d15) | Quick compiler read past the constant table for the high half of a wide constant | exact | low |
 | 13 | [`906457c3`](https://android.googlesource.com/platform/art/+/906457c326d505f511fae42fc693cade1656c19e) | Uninitialised `live_stack_freeze_size_` in mark-sweep | exact | none |
-| 14 | [`b917ea1a`](https://android.googlesource.com/platform/art/+/b917ea1a62aa0ab8eca3f689ef64b5be34e11abb), [`ba9ece9c`](https://android.googlesource.com/platform/art/+/ba9ece9c58de90b39c39b29dbdaee54b1654c066) | Performance. `Float.floatToRawIntBits`, `String.isEmpty`, `String.indexOf(int)` and `String.indexOf(int, int)` were never inlined. 4.4's `GenIntrinsic()` compares against misspelt names (`float_to_raw_int_bits`, `is_empty`, `index_of`). Upstream measured `URI.equals` 1.55x faster | `b917ea1a` exact; `ba9ece9c` adapted: its fix is in `dex_file_method_inliner.cc`, which 4.4 lacks, so the same names are fixed in `gen_invoke.cc` | medium: these intrinsics never ran in a shipped build. The ARM paths are small (`art_quick_indexof` clamps the start index; `isEmpty` is `negs`/`adcs`), and 5.0 shipped the same ARM code. Revert this commit alone if string code misbehaves |
+| 14 | [`b917ea1a`](https://android.googlesource.com/platform/art/+/b917ea1a62aa0ab8eca3f689ef64b5be34e11abb), [`ba9ece9c`](https://android.googlesource.com/platform/art/+/ba9ece9c58de90b39c39b29dbdaee54b1654c066), [`a44d4f50`](https://android.googlesource.com/platform/art/+/a44d4f508fa1642294e79d3ebecd790afe75ea60) | Performance. `Float.floatToRawIntBits`, `String.isEmpty`, `String.indexOf(int)` and `String.indexOf(int, int)` were never inlined. 4.4's `GenIntrinsic()` compares against misspelt names (`float_to_raw_int_bits`, `is_empty`, `index_of`). Upstream measured `URI.equals` 1.55x faster. `a44d4f50` stops `GenInlinedIndexOf()` reading a third argument that `indexOf(int)` does not have | `b917ea1a` exact; `ba9ece9c` adapted (names fixed in `gen_invoke.cc`); `a44d4f50` without its x86 hunk | medium (see the note below) |
 | 15 | [`53dc70cc`](https://android.googlesource.com/platform/art/+/53dc70cc824fa71c237015de2bebb2da6b462b5d) | Performance. On a hash collision, `InternTable::Lookup()` and `Remove()` scanned to the end of the table | adapted (4.4's lock and types; `int32_t` cast for `-Wsign-compare`) | low |
 | 16 | [`e1467659`](https://android.googlesource.com/platform/art/+/e1467659568500cefd84abc4cdb399d8db7e214d) | Zygote `capset()` used the 32-bit v1 header, so capabilities above 31 were dropped. In 4.4 no caller asks for one yet: system_server's list ends at `CAP_SYS_TTY_CONFIG`. It matters as soon as one is added, for example `CAP_BLOCK_SUSPEND` (36), which 5.0's system_server gets | exact | low |
 
-These fixes are on `OpenMyGlass/android_art` `glass-4.4`. 17 commits, because rank 14 is two.
+Rank 14's risk: these intrinsics never ran in a shipped build. The ARM paths are small (`art_quick_indexof` clamps the start index; `isEmpty` is `negs`/`adcs`), and 5.0 shipped the same ARM code. `ba9ece9c` can be reverted alone if string code misbehaves.
+
+These 16 fixes are 19 commits on `OpenMyGlass/android_art` `glass-4.4` (rank 7 is two commits, rank 14 three). `ba9ece9c` is adapted rather than cherry-picked: its upstream fix is in `dex_file_method_inliner.cc`, which 4.4 lacks.
 
 ### Considered and left out
 
@@ -59,14 +61,15 @@ These fixes are on `OpenMyGlass/android_art` `glass-4.4`. 17 commits, because ra
   - `9728f91a`, `a1ee14fc`, `5f51d4b8`: monitor and thread-list code that 4.4 does not have.
   - `99cb4eac`: 4.4 copies arrays in `java_lang_System.cc` with its own `MemmoveWords`.
   - `397297f9`: 4.4 has no `Math.abs(double)` intrinsic.
-  - `a1983d4d`: `RegStorage` pairs.
-  - Many x86 fixes: `c17ebe86`, `4554bfdc`, `a44d4f50`, `34fa0d93`, `a1758d83`, `e78d4e1a`, `8ef84afb`, `91b6ffaf`, `51a80d72`, `653f2bf1`.
+  - `a1983d4d`: it fixes the `RegStorage` pair code; 4.4 passes plain `low_reg`/`high_reg` integers.
+  - `c17ebe86`: the bug is in x86's mul-long-by-1 special case. Its shared `gen_loadstore.cc` hunk (`UpdateLocWide` in `StoreValueWide`) only supports that x86 change, and ARM has no such case.
+  - Many x86 fixes: `4554bfdc`, `34fa0d93`, `a1758d83`, `e78d4e1a`, `8ef84afb`, `91b6ffaf`, `51a80d72`, `653f2bf1`.
 - **Moving-GC only.** 4.4's collectors never move objects: `07d447be`, `8770e5c7`, `1984152a`, `79b4f38d`, `c0a9ea40`, `55871bf5`.
 - **Shutdown or tests only.** The runtime never shuts down on the device: `fd7e7f12`, `dfe78a6e`, `6afd409d`.
 - **Real in 4.4, but larger than their gain:**
-  - `37c16453`: `Thread.setName` hangs right after `start()`. It needs `ThreadList::Contains` and touches the debugger, so it is more work.
+  - `37c16453`: `Thread.setName` hangs right after `start()`. Upstream makes the thread-suspend method non-static and changes the debugger and `VMStack` callers, all of which differ in 4.4, so it is more work.
   - `082833c8`: rewrites the register pool sanity checker, about 200 lines in `ralloc_util.cc`.
-  - `59cde534`: works around the GCC volatile struct copy bug (GCC PR 47409). It was seen on MIPS. 4.4's ARM code has shipped with GCC 4.7 since 2013, so leave it until a device shows thread-state corruption.
+  - `59cde534`: works around the GCC volatile struct copy bug (GCC PR 47409). It came from Imagination's MIPS work. 4.4's ARM code has shipped with GCC 4.7 since 2013, so leave it until a device shows thread-state corruption.
   - The 2014 dex-file verifier hardening: `e09269ca`, `50d1bc19`, `78d639ef`, `277a7c7b`, `acc2bb69`, `5cac343e`, `d6cec905`. 4.4's verifier is older, and these do not apply. installd runs `dex2oat` with the app's own uid (`setgid`/`setuid` in `commands.c`, then the capabilities are dropped), so a malformed dex mostly attacks itself.
 - **Security:** the android-security `aosp-4.4` ART set is one commit, the zygote descriptor fix, and it is in the base. I found no ART CVE fix for 4.4 beyond it.
 
@@ -84,7 +87,7 @@ These fixes are on `OpenMyGlass/android_art` `glass-4.4`. 17 commits, because ra
   - miranda methods;
   - mutual-recursion stack overflow.
 - Still different from Dalvik, and not fixable by backports:
-  - 4.4 ART rejects JNI calls that Dalvik let through only with CheckJNI off (`NoSuchFieldError`/`NoSuchMethodError` instead of NULL);
+  - with CheckJNI off, Dalvik returned NULL for some bad JNI lookups, where 4.4 ART throws `NoSuchFieldError` or `NoSuchMethodError`;
   - Xposed never ran on 4.4 ART.
 
   The fallback stays the parent plan's: the `interpret-only` filter for the app, through `/data/system/glass-dex2oat-filters`.
@@ -100,7 +103,7 @@ Taking the whole of 5.0's or 5.1's `art` is not feasible for this track:
 - **build and bionic:**
   - `dex_preopt_libart.mk` and boot-image rules in `build/core`;
   - `libsigchain`, and `libbacktrace` and `libunwind` versions;
-  - 5.0's ART is built with GCC 4.8 or 4.9 and clang. 4.4 ships only GCC 4.6 and 4.7.
+  - 5.0's ART is built with GCC 4.8 or 4.9 and clang. 4.4's target GCCs are only 4.6 and 4.7.
 - **Apps.** The moving collectors break JNI code that keeps raw object pointers. That is the most common 5.0 breakage, and 4.4's non-moving GC avoids it.
 
 So it would be Track B's runtime on a KitKat framework: weeks of work, with no one to compare against. That is Track B's job (6.0.1), not Track A's. Keep backporting fixes one by one.
@@ -117,11 +120,11 @@ The owner asked to make the compilers as fast as possible, with correctness firs
 | `-Wl,--no-fix-cortex-a8` | same | The Cortex-A8 branch erratum does not exist on the A9 | binutils manual (`--fix-cortex-a8`: the A8 erratum for 32-bit Thumb-2 branches that span two 4 KB pages) |
 | `-mfpu=neon -mfloat-abi=softfp` | `armv7-a-neon.mk` (stock) | OMAP4's A9 has NEON and VFPv3-D32. softfp keeps the ARM EABI that every Glass binary uses | AOSP 4.4 |
 | `-ffunction-sections -fdata-sections` and `-Wl,--gc-sections` | `TARGET_linux-arm.mk` (stock) | The linker drops unreferenced sections. No semantic change | AOSP 4.4 |
-| `-Wl,--icf=safe` | `TARGET_GLOBAL_LDFLAGS` (stock) | gold folds identical functions only when their address is not taken ("safe") | AOSP 4.4; gold manual |
+| `-Wl,--icf=safe` | `TARGET_GLOBAL_LDFLAGS` (stock) | gold's "safe" mode folds only functions that cannot be told apart by address (on ARM, in practice mostly constructors and destructors) | AOSP 4.4; gold manual |
 | `-O2 -fomit-frame-pointer -fstrict-aliasing` for ARM-mode modules; `-Os` for Thumb-2 modules (the default mode) | `TARGET_linux-arm.mk` (stock) | AOSP's own split | AOSP 4.4 to 6.0 unchanged |
-| bionic `memcpy`, `memset`, `strcmp`, `strcpy`, `strcat`, `strlen` and their `_chk` versions for the Cortex-A9 | `bionic/libc/arch-arm/cortex-a9/` via `TARGET_CPU_VARIANT` | Hand-written A9 routines, chosen by the variant | AOSP 4.4. 5.1's versions differ only in macros and messages (`ENTRY_PRIVATE`, CFI); 5.1 adds `stpcpy`, a new API |
+| bionic `memcpy`, `memset`, `strcmp`, `strcpy`, `strcat`, `strlen`, and `__memcpy_chk`, `__memset_chk`, `__strcat_chk`, `__strcpy_chk`, for the Cortex-A9 | `bionic/libc/arch-arm/cortex-a9/` via `TARGET_CPU_VARIANT` | Hand-written A9 routines, chosen by the variant | AOSP 4.4. 5.1's versions differ only in macros, CFI and labels; 5.1 adds `stpcpy`, a new API, sharing `strcpy`'s code |
 | ART at `-O3` | `art/build/Android.common.mk` (stock) | AOSP's choice for the runtime | AOSP 4.4 |
-| libjpeg-turbo ARM mode, `-O3 -fstrict-aliasing -fprefetch-loop-arrays`, NEON SIMD | `external/jpeg` (stock) | Library's own flags | AOSP 4.4 = 5.1 |
+| libjpeg 6b (with NVIDIA's NEON code) ARM mode, `-O3 -fstrict-aliasing -fprefetch-loop-arrays`, NEON SIMD | `external/jpeg` (stock) | Library's own flags | AOSP 4.4 = 5.1 |
 | zlib ARM mode, `-O3` | `external/zlib` (stock) | Library's own flags | AOSP 4.4 = 5.1 |
 | Skia NEON paths (`__ARM_HAVE_NEON`, `*_neon.cpp`, `memset*_neon.S`) | `external/skia` (stock) | Selected by `ARCH_ARM_HAVE_NEON` | AOSP 4.4. 5.1 is still Thumb `-Os`; it adds `-O2` only for FDO builds |
 
@@ -141,7 +144,7 @@ The owner asked to make the compilers as fast as possible, with correctness firs
 - **`-Wl,--as-needed`.** It drops `DT_NEEDED` entries that some 4.4 libraries rely on transitively. Unsafe without a full audit.
 - **Never:** `-ffast-math`, `-Ofast`, `-fno-strict-overflow`, or any other global change to floating-point or aliasing semantics.
 
-So the native toolchain already uses the strongest settings that are safe. This work changes no native flag, so there is no size delta to record. The CI build of the manifest PR records image and library sizes in its `build-numbers.txt` artefact, as the reference for any later flag change.
+So the native toolchain already uses the strongest settings that are safe. This work changes no native flag, so there is no size delta to record. The CI build's `check-build.txt` artefact records the image sizes, and `build-numbers.txt` the build times and disk use. Nothing records per-library sizes yet: a later flag change needs that added to `tools/check-build.sh` first.
 
 ## Compiler settings: dex2oat
 
@@ -156,14 +159,13 @@ So the native toolchain already uses the strongest settings that are safe. This 
   - `persist.glass.d2o.usr=space` for user apps;
   - per-package overrides in `/data/system/glass-dex2oat-filters` (parent plan, Task 3; `android_frameworks_native` PR 1, device `system.prop`).
 
-  4.4's filters are `interpret-only`, `space`, `balanced`, `speed` and `everything`. Apps of up to 900 methods are compiled with `speed` regardless, unless the filter is `interpret-only`.
-- **Boot image.** Compiled once at first boot by `ImageSpace::GenerateImage()`: `-Xms64m -Xmx64m`, `--image-classes=preloaded-classes` from `framework.jar`, and no filter, so dex2oat's default `speed`. Every process maps it, so leave it at `speed`. `everything` would only add size. The parent plan's preloaded-classes trimming (Task 4) is the lever for its size.
+  4.4's filters are `interpret-only`, `space`, `balanced`, `speed` and `everything`. Apps with up to 900 method references (across all their dex files) are compiled with `speed` regardless, unless the filter is `interpret-only`.
+- **Boot image.** Compiled once at first boot by `ImageSpace::GenerateImage()`: `-Xms64m -Xmx64m`, `--image-classes=preloaded-classes` from `framework.jar`, and no filter, so dex2oat's default `speed` (`ART_SMALL_MODE` is off, which would make it `interpret-only`). Every process maps it, so leave it at `speed`. `everything` would only add size. The parent plan's preloaded-classes trimming (Task 4) is the lever for its size.
 - **Intrinsics.** Rank 14 above turns on the string and float intrinsics that 4.4 meant to have.
 - **Not available in 4.4:**
   - build-time preopt for ART (parent plan, Task 3, Step 3);
-  - `--no-watch-dog` through a property;
+  - a way to pass `--no-watch-dog` or `-j<n>` from a property or installd (dex2oat has both options, but installd passes neither; `-j` defaults to one thread per CPU, 2 on the OMAP4430);
   - `dalvik.vm.dex2oat-flags`;
-  - thread-count control: dex2oat uses one thread per CPU, 2 on the OMAP4430.
 
 ## Tests
 
