@@ -8,7 +8,7 @@ tools/sparse.py factory/system.img factory/system.raw
 tools/extract_vendor.py factory/system.raw ../android_device_glass_glass-1/proprietary-files.txt /tmp/vendor-check
 ```
 
-The run wrote 36 files plus `device-vendor.mk`, exit 0, and reported no missing path. Sizes are in bytes.
+The run wrote 36 files plus `device-vendor.mk`, exit 0, and reported no missing path. Sizes are in bytes. The table leaves out `/system/lib/hw/gps.omap4.so`: the GPS chip is not used (location comes from the phone), and the device tree has no GPS HAL ([device tree #4](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/4)). Rows marked "open" are no longer extracted: the device tree builds an open replacement.
 
 Notes:
 - `ducati-m3-core0-2gb.xem3` is XE-C only; `ducati-m3-core0.xem3` is the other variant.
@@ -25,7 +25,7 @@ Phase R2 compares these with the OMAP4-AOSP `pvr-source`.
 - `libIMGegl_SGX540_120.so`: `1.4 build 1.9@2166536`.
 - `libGLESv2_POWERVR_SGX540_120.so`: `OpenGL ES 2.0 build 1.9@2166536` and `OpenGL ES GLSL ES 1.00 build 1.9@2166536`.
 
-36 files:
+35 of the 36 files:
 
 | Path | Size | SHA-256 | Note |
 |---|---:|---|---|
@@ -34,14 +34,13 @@ Phase R2 compares these with the OMAP4-AOSP `pvr-source`.
 | `/system/bin/shm_service` | 25868 | `92887fb9915506adb87e36180581207eb7eda2fc31f5e29c3596ddd031adb1f8` |  |
 | `/system/bin/sysproxy` | 50504 | `9ba96740cc5970c3dd6c2602f79b70fa4e3b010fb39ee45228207871caaa4e4a` |  |
 | `/system/bin/sysproxyd` | 21832 | `0486df87f3a4fb4b88b099d66b7332eda4f0f874ee6f48960a56060a801c7700` |  |
-| `/system/etc/audio_policy.conf` | 2422 | `feb0e1656c66c39f2c18e37acf6852226a71499ebe47532e17aa69f2f09180e7` |  |
+| `/system/etc/audio_policy.conf` | 2422 | `feb0e1656c66c39f2c18e37acf6852226a71499ebe47532e17aa69f2f09180e7` | open: written with the audio HAL ([device tree #6](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/6)) |
 | `/system/etc/wifi/bcmdhd.cal` | 919 | `435e4ab26aa159525f519671fa1a391595ea8fcaa6bd952fceaf0aeb697d2951` |  |
-| `/system/lib/hw/audio.primary.glass_1.so` | 18712 | `88dca0e3dbf948b5b80c227a9599b7502806e5f6d5d902773c0a8aa8b49d22fc` |  |
-| `/system/lib/hw/gps.omap4.so` | 1217632 | `3f68b133545f88a787ab73ae1cd466d9cbd451eed963789254189aeaba5ca493` |  |
-| `/system/lib/hw/sensors.glass_1.so` | 5360 | `e1d0c82adb7ced75ae3a393fb503a63b42be7b6b42a8318b63daf9da965a0794` |  |
+| `/system/lib/hw/audio.primary.glass_1.so` | 18712 | `88dca0e3dbf948b5b80c227a9599b7502806e5f6d5d902773c0a8aa8b49d22fc` | open: audio HAL ([device tree #6](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/6)) |
+| `/system/lib/hw/sensors.glass_1.so` | 5360 | `e1d0c82adb7ced75ae3a393fb503a63b42be7b6b42a8318b63daf9da965a0794` | open: sensors HAL over IIO ([device tree #5](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/5)) |
 | `/system/vendor/bin/pvrsrvctl_SGX540_120` | 9328 | `a67fb9a952b5dd9e95a5b5ee04454964c39ba0eb948d8a753494f345556aff55` |  |
 | `/system/vendor/bin/pvrsrvinit` | 9328 | `866377b83429d9dafc85e20403dd80ecdb9eb7569ba534532803fbbb5a53f106` |  |
-| `/system/vendor/firmware/NVM2` | 18060 | `41211a7cb452522adc8494c7184acd18157ab4ee54fe285733f516c2b5f6866f` |  |
+| `/system/vendor/firmware/NVM2` | 18060 | `41211a7cb452522adc8494c7184acd18157ab4ee54fe285733f516c2b5f6866f` | GPS receiver patch, no longer extracted ([device tree #4](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/4)) |
 | `/system/vendor/firmware/bcm4330.hcd` | 56736 | `f87a3fc4c946da97d87a72915c0fcdf3594a3ccfc0751636a0ff75a90e7daf38` |  |
 | `/system/vendor/firmware/ducati-m3-core0-2gb.xem3` | 6344279 | `fd5edc30d490b665c59daa87d67f4b12dfd9ea66aebdedeeba2310e4626a7ff4` | XE-C only |
 | `/system/vendor/firmware/ducati-m3-core0.xem3` | 6344271 | `2c5e9e9853cd916dea3551d9a60933660dd7a02c55decf443ea94d68e98bb970` |  |
