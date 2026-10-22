@@ -17,7 +17,7 @@ Each phase gets its own plan in `docs/plans/` of the repo that owns most of its 
 |---|---|---|---|
 | R1 | Vendor extraction and a device tree without Google files | glass-rom, android_device_glass_glass-1 | `extract_vendor.py` fills `vendor/glass/glass-1/` from the owner's image; the tree has new `rootdir/` files and passes its own checks. Plan: [`2026-10-21-vendor-extraction.md`](2026-10-21-vendor-extraction.md). |
 | R2 | Kernel: GPU module from source, then low-risk tuning | glass-kernel | Done: `pvrsrvkm_sgx540_120.ko` is built from Imagination's DDK at XE24's exact build, `1.9@2166536` (MIT/GPL-2.0), and imports the same kernel symbols with the same CRCs as the stock module (glass-kernel phase 3). OMAP4-AOSP's `pvr-source` is `1.9@2291151` and would not match XE24's user-space libraries. With the binary module gone, the config cleanups that change struct layouts become possible. Then, from `reports/Ottimizzazioni kernel OMAP4.md`, only items rated no or low risk: interactive backports (`io_is_busy`, per-frequency `above_hispeed_delay`), the xrr02 input-boost handler, linux-3.4.y stable up to 3.4.113, and a check of the XE-C 2 GB memory map. No overclock, undervolt or raised thermal limit. |
-| R3 | Open HALs | android_device_glass_glass-1 | power HAL (interactive values, boostpulse, screen-off cap), lights, audio (finish `android-6.0.1_r31-audio`), sensors over IIO, camera from TI's OMAP4 HAL on top of the Ducati blob. Each removes one entry from `proprietary-files.txt`. |
+| R3 | Open HALs | android_device_glass_glass-1 | Open on `android-6.0.1_r31`, not run on a device: power HAL (interactive values, boostpulse, screen-off cap) and lights ([#3](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/3)), sensors over IIO ([#5](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/5)), audio and audio policy ([#6](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/6)), camera from TI's OMAP4 HAL (`camera.omap4`, from source) on top of the Ducati firmware ([#11](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/11)), hardware composer (`hwcomposer.omap4`, from source, [#12](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/12)). No GPS HAL: location comes from the phone ([#4](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/4)). Power, lights, sensors and audio are ours and cross-compiled in CI; camera and hwcomposer are TI's, built from source only in a full build. Audio and sensors left `proprietary-files.txt`; the others were never on it. |
 | R4 | Glass system services, clean-room | new repo | touchpad gestures, head gestures, on-head and wink detection (needs the glasshub protocol), screen wake. Spec written from observations, code written only from the spec. |
 | R5 | Glass apps, clean-room | new repo | card timeline launcher at 640×360, settings, setup, camera, voice with an open hotword; dictation goes through OpenMyGlass to the phone. |
 
@@ -28,7 +28,7 @@ Any binary on the "stays binary" list, and any HAL, daemon or library that a pha
 - **Workspace:** `_re/` in OpenMyGlass, which is not versioned. Decompiled code, disassembly and extracted files never leave it.
 - **Clean room:** what reverse engineering finds goes into a spec under `docs/specs/`: interfaces, ioctls, sysfs paths, message formats, timings, and where each fact was observed. The open replacement is written from the spec only, by an implementer (person or agent) who has not read the decompiled code.
 - **Order:** the targets of the next phase come first:
-  1. R3: `audio.primary.glass_1.so` and `libglassalsa.so`, `sensors.glass_1.so` (InvenSense MPL), `gps.omap4.so`;
+  1. R3: `audio.primary.glass_1.so` and `libglassalsa.so`, `sensors.glass_1.so` (InvenSense MPL). Done: both have a spec and an open HAL;
   2. Glass daemons: `sysproxyd`, `shm_service`, `bqflash`, `raft`, `bootconfig`;
   3. R4: `libglassgaze.so` and the glasshub protocol, `libglass_services_jni.so`, `libglassinputdevice.so`;
   4. the camera libraries.
@@ -79,7 +79,7 @@ Decided with the owner on 2026-10-21. This closes the earlier open question of w
 
 | Track | Android | Runtime | Why | Plan |
 |---|---|---|---|---|
-| A | 4.4.4 KitKat | **ART only**: Dalvik (`libdvm`, `dexopt`) not built, everything compiled by `dex2oat` | Near-term target: Glass's binaries (PowerVR user space, audio, camera, sensors, GPS) were built for KitKat and run without shims. ART is already in XE24's image (stock runs Dalvik) | [`2026-10-21-android-lean-kitkat-art.md`](2026-10-21-android-lean-kitkat-art.md) |
+| A | 4.4.4 KitKat | **ART only**: Dalvik (`libdvm`, `dexopt`) not built, everything compiled by `dex2oat` | Near-term target: Glass's binaries (PowerVR user space, audio, camera, sensors) were built for KitKat and run without shims. ART is already in XE24's image (stock runs Dalvik) | [`2026-10-21-android-lean-kitkat-art.md`](2026-10-21-android-lean-kitkat-art.md) |
 | B | 6.0.1 Marshmallow | ART | The most app-compatible system that still runs Glass's binaries (as LineageOS 13 and Unlegacy-Android did on other OMAP4 devices), and the Android version meant to bridge to the mainline kernel | [`2026-10-21-android-lean-6.md`](2026-10-21-android-lean-6.md) |
 
 Optimisations from later Android versions are backported to KitKat where the gain is worth the cost. The ranked list is in Track A's plan, Task 5. The cheap gains are planned, among them:
@@ -91,9 +91,15 @@ The heavy ones are **not planned**: JobScheduler and Doze in the framework, Loll
 
 Long-term goal: the mainline kernel and the most compatible apps, so Track B on mainline.
 
+### Status (2026-10-22)
+
+- **Manifest:** [OpenMyGlass/manifest](https://github.com/OpenMyGlass/manifest) holds the Track A build: AOSP `android-4.4.4_r2.0.1`, omap4-aosp's `hardware/ti/omap4`, android-security's patched `aosp-4.4` projects, and our forks, each pinned to a commit ([manifest #1](https://github.com/OpenMyGlass/manifest/pull/1)). Its `build` workflow, run by hand on the free runner, built the system image with every ART-only check green; nothing has run on a Glass.
+- **Track A device tree:** branch `android-4.4.4`: kernel and SGX module from glass-kernel ([#7](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/7)), ART only with dex2oat filters ([#8](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/8)), the 4.4 emulated sdcard ([#9](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/9)), lean apps and services ([#10](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/10)), media XMLs ([#13](https://github.com/OpenMyGlass/android_device_glass_glass-1/pull/13)). Of the R3 HALs, power and lights are on it, and camera and the hardware composer come from omap4-aosp's `hardware/ti/omap4`; audio and sensors still use the stock blobs.
+- **Track B device tree:** branch `android-6.0.1_r31`, with the R3 HALs.
+
 ### Tracks and routes
 
-- **Route 1 (open Android) now means both tracks.** The R3 HALs are written once, against API levels both versions load: audio 2.0, sensors exactly 1.1 (4.4 loads nothing newer), camera HAL1 over Ducati, hwcomposer 1.1, power 0.2. The R4 services and R5 apps stay independent of Android, as written above, so they also serve route 2.
+- **Route 1 (open Android) now means both tracks.** The R3 HALs are written once, against API levels both versions load: audio 2.0, sensors exactly 1.1 (4.4 loads nothing newer), camera HAL1 over Ducati, hwcomposer 1.0 (`HWC_DEVICE_API_VERSION_1_0`, TI's `hwcomposer.omap4`), power 0.2. The R4 services and R5 apps stay independent of Android, as written above, so they also serve route 2.
 - **Route 2 (plain Linux)** is unaffected. Its components are shared with both tracks.
 - **Route 3 (mainline)** is where Track B is meant to go in the long term (see below).
 
