@@ -206,6 +206,8 @@ Each item is one property or one makefile line and can be reverted alone. The "E
 
 Ranked by gain for Glass against cost. Only the first group is planned.
 
+The power items (ranks 1, 6 and 7 below) are replaced by the [power backports plan](2026-10-22-kitkat-power-backports.md): its rank 1 ports the 5.0/6.0 alarm fixes, and its rank 2 moves this rank 1 into the framework as a Glass device idle built from 6.0's Doze, because only the framework can hold back other apps' alarms and wake locks. The Wi-Fi parts of this rank 1 stay in Task 4. The rows below are kept as first written.
+
 | Rank | Backport | Gain | Cost | Verdict |
 |---|---|---|---|---|
 | 1 | Doze-like idle as a small service of our own: when the screen is off and the wearer is off-head (glasshub), defer alarms with `AlarmManager` batching, turn off Wi-Fi scans, hold the CPU in suspend | large: Glass's idle drain comes from wakeups | small: our own service using public 4.4 APIs and the glasshub on-head signal, no framework surgery | **planned**, with R4 |
@@ -218,7 +220,7 @@ Ranked by gain for Glass against cost. Only the first group is planned.
 | 8 | Lollipop ART (moving GC, AOT preopt at build time) | medium: less fragmentation, faster boot | very high: new runtime ABI, `core-libart` and framework changes; no one has done it publicly | **not planned** |
 | 9 | Project Svelte from 5.x/6.x (memory trimming in system_server) | small: 4.4 already has the main Svelte work | high: many scattered framework changes | **not planned** |
 
-- [ ] **Step 1:** Write rank 1 as a section of the R4 services plan (owner: the services repository), with the glasshub on-head signal as input.
+- [ ] **Step 1:** ~~Write rank 1 as a section of the R4 services plan.~~ Replaced by the power backports plan's rank 2 (framework device idle). The R4 glasshub service only has to send its on-head state (`com.android.server.glass.action.WEARER_STATE`).
 - [ ] **Step 2:** Rank 2: set `config_extraFreeKbytesAdjust` and `config_lowMemoryKillerMinFreeKbytesAdjust` in the device overlay. Start from AOSP defaults and change only after measurement.
 
 ### Task 6: Compatibility
